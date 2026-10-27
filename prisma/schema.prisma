@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── Seguridad ─────────────
+
+model Rol {
+  id        Int       @id @default(autoincrement())
+  nombre    String    @unique
+  // Módulos habilitados: "inventario" | "ventas" | "compras" | "configuracion"
+  permisos  String[]
+  usuarios  Usuario[]
+  createdAt DateTime  @default(now())
+}
+
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  activo       Boolean  @default(true)
+  rolId        Int
+  rol          Rol      @relation(fields: [rolId], references: [id])
+  createdAt    DateTime @default(now())
+
+  facturas    Factura[]
+  ordenes     OrdenCompra[]
+  movimientos MovimientoStock[]
+}
+
+// ───────────── Empresa ─────────────
+
+model Empresa {
+  id               Int       @id @default(1)
+  razonSocial      String
+  ruc              String
+  direccion        String?
+  telefono         String?
+  email            String?
+  // Datos de timbrado (SET)
+  timbrado         String
+  timbradoInicio   DateTime  @db.Date
+  timbradoFin      DateTime  @db.Date
+  establecimiento  String    @default("001")
+  puntoExpedicion  String    @default("001")
+  siguienteNumero  Int       @default(1)
+  updatedAt        DateTime  @updatedAt
+}
+
+// ───────────── Inventario ─────────────
+
+model Categoria {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  productos Producto[]
+}
+
+model Producto {
+  id          Int        @id @default(autoincrement())
+  codigo      String     @unique
+  nombre      String
+  descripcion String?
+  unidad      String     @default("UN")
+  categoriaId Int?
+  categoria   Categoria? @relation(fields: [categoriaId], references: [id])
+  precioVenta Decimal    @db.Decimal(18, 2)
+  costo       Decimal    @default(0) @db.Decimal(18, 2)
+  // Tasa de IVA: 10, 5 o 0 (exenta). Precios con IVA incluido.
+  tasaIva     Int        @default(10)
+  stockMinimo Decimal    @default(0) @db.Decimal(14, 3)
+  activo      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  stocks       Stock[]
+  movimientos  MovimientoStock[]
+  lineasVenta  FacturaLinea[]
+  lineasCompra OrdenCompraLinea[]
+}
+
+model Deposito {
+  id          Int               @id @default(autoincrement())
+  nombre      String            @unique
+  direccion   String?
+  activo      Boolean           @default(true)
+  stocks      Stock[]
+  movimientos MovimientoStock[]
+  facturas    Factura[]
+  ordenes     OrdenCompra[]
+}
+
+model Stock {
+  productoId Int
+  depositoId Int
+  cantidad   Decimal  @default(0) @db.Decimal(14, 3)
+  producto   Producto @relation(fields: [productoId], references: [id])
+  deposito   Deposito @relation(fields: [depositoId], references: [id])
+
+  @@id([productoId, depositoId])
+}
+
+enum OrigenMovimiento {
+  COMPRA
+  VENTA
+  ANULACION_VENTA
+  AJUSTE
+  TRANSFERENCIA
+}
+
+model MovimientoStock {
+  id         Int              @id @default(autoincrement())
+  fecha      DateTime         @default(now())
+  productoId Int
+  depositoId Int
+  // Positivo = entrada, negativo = salida
+  cantidad   Decimal          @db.Decimal(14, 3)
+  origen     OrigenMovimiento
+  referencia String?
+  nota       String?
+  usuarioId  Int?
+  producto   Producto         @relation(fields: [productoId], references: [id])
+  deposito   Deposito         @relation(fields: [depositoId], references: [id])
+  usuario    Usuario?         @relation(fields: [usuarioId], references: [id])
+
+  @@index([productoId, fecha])
+}
+
+// ───────────── Contactos (clientes y proveedores) ─────────────
+
+model Contacto {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  ruc         String?
+  telefono    String?
+  email       String?
+  direccion   String?
+  esCliente   Boolean  @default(false)
+  esProveedor Boolean  @default(false)
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  facturas Factura[]
+  ordenes  OrdenCompra[]
+}
+
+// ───────────── Ventas ─────────────
+
+enum EstadoFactura {
+  BORRADOR
+  EMITIDA
+  ANULADA
+}
+
+enum CondicionVenta {
+  CONTADO
+  CREDITO
+}
+
+model Factura {
+  id          Int            @id @default(autoincrement())
+  // 001-001-0000001; null mientras es borrador
+  numero      String?        @unique
+  timbrado    String?
+  fecha       DateTime       @default(now())
+  clienteId   Int
+  depositoId  Int
+  condicion   CondicionVenta @default(CONTADO)
+  estado      EstadoFactura  @default(BORRADOR)
+  exenta      Decimal        @default(0) @db.Decimal(18, 2)
+  gravada5    Decimal        @default(0) @db.Decimal(18, 2)
+  gravada10   Decimal        @default(0) @db.Decimal(18, 2)
+  iva5        Decimal        @default(0) @db.Decimal(18, 2)
+  iva10       Decimal        @default(0) @db.Decimal(18, 2)
+  total       Decimal        @default(0) @db.Decimal(18, 2)
+  observacion String?
+  usuarioId   Int?
+  createdAt   DateTime       @default(now())
+  anuladaAt   DateTime?
+
+  cliente  Contacto       @relation(fields: [clienteId], references: [id])
+  deposito Deposito       @relation(fields: [depositoId], references: [id])
+  usuario  Usuario?       @relation(fields: [usuarioId], references: [id])
+  lineas   FacturaLinea[]
+}
+
+model FacturaLinea {
+  id             Int      @id @default(autoincrement())
+  facturaId      Int
+  productoId     Int
+  descripcion    String
+  cantidad       Decimal  @db.Decimal(14, 3)
+  precioUnitario Decimal  @db.Decimal(18, 2)
+  tasaIva        Int
+  subtotal       Decimal  @db.Decimal(18, 2)
+  factura        Factura  @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+  producto       Producto @relation(fields: [productoId], references: [id])
+}
+
+// ───────────── Compras ─────────────
+
+enum EstadoOrdenCompra {
+  BORRADOR
+  CONFIRMADA
+  RECIBIDA
+  CANCELADA
+}
+
+model OrdenCompra {
+  id                Int               @id @default(autoincrement())
+  fecha             DateTime          @default(now())
+  proveedorId       Int
+  depositoId        Int
+  estado            EstadoOrdenCompra @default(BORRADOR)
+  facturaProveedor  String?
+  total             Decimal           @default(0) @db.Decimal(18, 2)
+  observacion       String?
+  usuarioId         Int?
+  recibidaAt        DateTime?
+  createdAt         DateTime          @default(now())
+
+  proveedor Contacto           @relation(fields: [proveedorId], references: [id])
+  deposito  Deposito           @relation(fields: [depositoId], references: [id])
+  usuario   Usuario?           @relation(fields: [usuarioId], references: [id])
+  lineas    OrdenCompraLinea[]
+}
+
+model OrdenCompraLinea {
+  id          Int         @id @default(autoincrement())
+  ordenId     Int
+  productoId  Int
+  cantidad    Decimal     @db.Decimal(14, 3)
+  costo       Decimal     @db.Decimal(18, 2)
+  subtotal    Decimal     @db.Decimal(18, 2)
+  orden       OrdenCompra @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  producto    Producto    @relation(fields: [productoId], references: [id])
+}
