@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,8 @@ import { crearDeposito } from "../actions";
 export const metadata = { title: "Depósitos" };
 
 export default async function DepositosPage() {
-  const depositos = await prisma.deposito.findMany({
+  const { db } = await getTenant();
+  const depositos = await db.deposito.findMany({
     orderBy: { nombre: "asc" },
     include: { _count: { select: { stocks: { where: { cantidad: { gt: 0 } } } } } },
   });

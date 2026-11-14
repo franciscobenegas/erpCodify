@@ -4,10 +4,11 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { EstadoOrdenCompra } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { requirePermiso } from "@/lib/auth";
+import { getTenant } from "@/lib/auth";
+import type { TenantDb } from "@/lib/tenant-db";
 import { moverStock } from "@/lib/stock";
 import { parseLineas } from "@/lib/lineas";
+import { auditar } from "@/lib/auditoria";
 import { ErrorNegocio, formObj, mensajeError, zodMsg, zOptStr, type ActionState } from "@/lib/action";
 
 const cabecera = z.object({
@@ -20,7 +21,7 @@ const cabecera = z.object({
 export async function guardarOrden(_: ActionState, fd: FormData): Promise<ActionState> {
   let id: number;
   try {
-    const s = await requirePermiso("compras");
+    const { s, db } = await getTenant("compras");
     const p = cabecera.safeParse(formObj(fd));
     if (!p.success) return { error: zodMsg(p.error) };
     const lineas = parseLineas(fd.get("lineas")).map((l) => ({
@@ -33,7 +34,20 @@ export async function guardarOrden(_: ActionState, fd: FormData): Promise<Action
     const { id: ordenId, ...cab } = p.data;
     const confirmar = fd.get("accion") === "confirmar";
 
-    id = await prisma.$transaction(async (tx) => {
+    // Proveedor, depósito y productos deben ser de esta empresa (los ids vienen del formulario).
+    const idsProd = [...new Set(lineas.map((l) => l.productoId))];
+    const [okProveedor, okDeposito, nProd] = await Promise.all([
+      db.contacto.findUnique({ where: { id: cab.proveedorId }, select: { id: true } }),
+      db.deposito.findUnique({ where: { id: cab.depositoId }, select: { id: true } }),
+      db.producto.count({ where: { id: { in: idsProd } } }),
+    ]);
+    if (!okProveedor) throw new ErrorNegocio("Proveedor inválido");
+    if (!okDeposito) throw new ErrorNegocio("Depósito inválido");
+    if (nProd !== idsProd.length) throw new ErrorNegocio("Hay un producto inexistente en una línea");
+
+    const antes = ordenId ? await db.ordenCompra.findUnique({ where: { id: ordenId }, include: { lineas: true } }) : null;
+
+    id = await db.$transaction(async (tx) => {
       if (ordenId) {
         const actual = await tx.ordenCompra.findUniqueOrThrow({ where: { id: ordenId } });
         if (actual.estado !== "BORRADOR") throw new ErrorNegocio("Solo se pueden editar órdenes en borrador");
@@ -45,9 +59,20 @@ export async function guardarOrden(_: ActionState, fd: FormData): Promise<Action
         return ordenId;
       }
       const o = await tx.ordenCompra.create({
-        data: { ...cab, total, estado: confirmar ? "CONFIRMADA" : "BORRADOR", usuarioId: s.userId, lineas: { create: lineas } },
+        data: { ...cab, total, estado: confirmar ? "CONFIRMADA" : "BORRADOR", empresaId: s.empresaId, usuarioId: s.userId, lineas: { create: lineas } },
       });
       return o.id;
+    });
+
+    const despues = await db.ordenCompra.findUnique({ where: { id }, include: { lineas: true } });
+    await auditar({
+      modulo: "compras",
+      entidad: "OrdenCompra",
+      entidadId: id,
+      accion: ordenId ? "EDITAR" : "CREAR",
+      resumen: `${ordenId ? "Editó" : "Creó"} la orden de compra #${id}${confirmar ? " (confirmada)" : ""}`,
+      antes,
+      despues,
     });
   } catch (e) {
     return { error: mensajeError(e) };
@@ -56,15 +81,18 @@ export async function guardarOrden(_: ActionState, fd: FormData): Promise<Action
   redirect(`/compras/ordenes/${id}`);
 }
 
-async function cambiarEstado(id: number, desde: EstadoOrdenCompra[], hacia: EstadoOrdenCompra) {
-  const r = await prisma.ordenCompra.updateMany({ where: { id, estado: { in: desde } }, data: { estado: hacia } });
+async function cambiarEstado(db: TenantDb, id: number, desde: EstadoOrdenCompra[], hacia: EstadoOrdenCompra) {
+  const r = await db.ordenCompra.updateMany({ where: { id, estado: { in: desde } }, data: { estado: hacia } });
   if (r.count === 0) throw new ErrorNegocio("La orden cambió de estado. Recargá la página.");
 }
 
 export async function confirmarOrden(id: number, _: ActionState): Promise<ActionState> {
   try {
-    await requirePermiso("compras");
-    await cambiarEstado(id, ["BORRADOR"], "CONFIRMADA");
+    const { db } = await getTenant("compras");
+    const antes = await db.ordenCompra.findUnique({ where: { id } });
+    await cambiarEstado(db, id, ["BORRADOR"], "CONFIRMADA");
+    const despues = await db.ordenCompra.findUnique({ where: { id } });
+    await auditar({ modulo: "compras", entidad: "OrdenCompra", entidadId: id, accion: "CONFIRMAR", resumen: `Confirmó la orden de compra #${id}`, antes, despues });
   } catch (e) {
     return { error: mensajeError(e) };
   }
@@ -74,8 +102,11 @@ export async function confirmarOrden(id: number, _: ActionState): Promise<Action
 
 export async function cancelarOrden(id: number, _: ActionState): Promise<ActionState> {
   try {
-    await requirePermiso("compras");
-    await cambiarEstado(id, ["BORRADOR", "CONFIRMADA"], "CANCELADA");
+    const { db } = await getTenant("compras");
+    const antes = await db.ordenCompra.findUnique({ where: { id } });
+    await cambiarEstado(db, id, ["BORRADOR", "CONFIRMADA"], "CANCELADA");
+    const despues = await db.ordenCompra.findUnique({ where: { id } });
+    await auditar({ modulo: "compras", entidad: "OrdenCompra", entidadId: id, accion: "CANCELAR", resumen: `Canceló la orden de compra #${id}`, antes, despues });
   } catch (e) {
     return { error: mensajeError(e) };
   }
@@ -86,15 +117,17 @@ export async function cancelarOrden(id: number, _: ActionState): Promise<ActionS
 /** Recibe la mercadería: ingresa stock al depósito y actualiza el costo de cada producto. */
 export async function recibirOrden(id: number, _: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const s = await requirePermiso("compras");
+    const { s, db } = await getTenant("compras");
     const facturaProveedor = String(fd.get("facturaProveedor") ?? "").trim() || null;
+    const antes = await db.ordenCompra.findUnique({ where: { id }, include: { lineas: true } });
 
-    await prisma.$transaction(async (tx) => {
+    await db.$transaction(async (tx) => {
       const o = await tx.ordenCompra.findUniqueOrThrow({ where: { id }, include: { lineas: true } });
       if (o.estado !== "CONFIRMADA") throw new ErrorNegocio("Solo se reciben órdenes confirmadas");
 
       for (const l of o.lineas) {
         await moverStock(tx, {
+          empresaId: s.empresaId,
           productoId: l.productoId,
           depositoId: o.depositoId,
           cantidad: Number(l.cantidad),
@@ -107,6 +140,9 @@ export async function recibirOrden(id: number, _: ActionState, fd: FormData): Pr
       }
       await tx.ordenCompra.update({ where: { id }, data: { estado: "RECIBIDA", recibidaAt: new Date(), facturaProveedor } });
     });
+
+    const despues = await db.ordenCompra.findUnique({ where: { id }, include: { lineas: true } });
+    await auditar({ modulo: "compras", entidad: "OrdenCompra", entidadId: id, accion: "RECIBIR", resumen: `Recibió la mercadería de la orden de compra #${id}`, antes, despues });
   } catch (e) {
     return { error: mensajeError(e) };
   }

@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { ActionForm, SubmitButton } from "@/components/form";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,8 @@ import { crearCategoria } from "../actions";
 export const metadata = { title: "Categorías" };
 
 export default async function CategoriasPage() {
-  const categorias = await prisma.categoria.findMany({ orderBy: { nombre: "asc" }, include: { _count: { select: { productos: true } } } });
+  const { db } = await getTenant();
+  const categorias = await db.categoria.findMany({ orderBy: { nombre: "asc" }, include: { _count: { select: { productos: true } } } });
   return (
     <>
       <PageHeader title="Categorías" />

@@ -92,4 +92,11 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "tnum" 1;
   }
+  /* Cursor de mano en todos los botones y elementos interactivos (salvo deshabilitados) */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label:has(input[type="checkbox"]),
+  summary {
+    cursor: pointer;
+  }
 }

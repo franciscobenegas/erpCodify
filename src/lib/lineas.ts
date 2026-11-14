@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { prisma } from "./prisma";
+import { getTenant } from "./auth";
 import { toNum } from "./utils";
 import { ErrorNegocio } from "./action";
 import type { ProductoOpcion } from "@/components/lineas-editor";
@@ -28,7 +28,8 @@ export function parseLineas(raw: FormDataEntryValue | null) {
 }
 
 export async function productosOpcion(): Promise<ProductoOpcion[]> {
-  const ps = await prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } });
+  const { db } = await getTenant();
+  const ps = await db.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } });
   return ps.map((p) => ({
     id: p.id,
     codigo: p.codigo,

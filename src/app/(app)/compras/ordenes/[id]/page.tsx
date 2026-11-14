@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { formatFecha, formatGs, formatQty } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { EstadoBadge } from "@/components/estado-badge";
@@ -15,7 +15,8 @@ import { cancelarOrden, confirmarOrden, recibirOrden } from "../actions";
 
 export default async function OrdenPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const o = await prisma.ordenCompra.findUnique({
+  const { db } = await getTenant();
+  const o = await db.ordenCompra.findUnique({
     where: { id: Number(id) },
     include: { proveedor: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } } },
   });

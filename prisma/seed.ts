@@ -4,35 +4,9 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const admin = await prisma.rol.upsert({
-    where: { nombre: "Administrador" },
-    update: {},
-    create: { nombre: "Administrador", permisos: ["inventario", "ventas", "compras", "configuracion"] },
-  });
-  await prisma.rol.upsert({
-    where: { nombre: "Vendedor" },
-    update: {},
-    create: { nombre: "Vendedor", permisos: ["ventas"] },
-  });
-  await prisma.rol.upsert({
-    where: { nombre: "Depósito" },
-    update: {},
-    create: { nombre: "Depósito", permisos: ["inventario", "compras"] },
-  });
-
-  await prisma.usuario.upsert({
-    where: { email: "admin@erp.local" },
-    update: {},
-    create: {
-      nombre: "Administrador",
-      email: "admin@erp.local",
-      passwordHash: await bcrypt.hash("admin123", 10),
-      rolId: admin.id,
-    },
-  });
-
+  // La empresa es el tenant: se crea primero y todo cuelga de ella.
   const hoy = new Date();
-  await prisma.empresa.upsert({
+  const empresa = await prisma.empresa.upsert({
     where: { id: 1 },
     update: {},
     create: {
@@ -46,21 +20,52 @@ async function main() {
       timbradoFin: new Date(Date.UTC(hoy.getFullYear(), 11, 31)),
     },
   });
+  const empresaId = empresa.id;
+
+  const admin = await prisma.rol.upsert({
+    where: { empresaId_nombre: { empresaId, nombre: "Administrador" } },
+    update: {},
+    create: { empresaId, nombre: "Administrador", permisos: ["inventario", "ventas", "compras", "configuracion"] },
+  });
+  await prisma.rol.upsert({
+    where: { empresaId_nombre: { empresaId, nombre: "Vendedor" } },
+    update: {},
+    create: { empresaId, nombre: "Vendedor", permisos: ["ventas"] },
+  });
+  await prisma.rol.upsert({
+    where: { empresaId_nombre: { empresaId, nombre: "Depósito" } },
+    update: {},
+    create: { empresaId, nombre: "Depósito", permisos: ["inventario", "compras"] },
+  });
+
+  // El primer usuario es super-admin para poder dar de alta nuevas empresas.
+  await prisma.usuario.upsert({
+    where: { email: "admin@erp.local" },
+    update: {},
+    create: {
+      empresaId,
+      nombre: "Administrador",
+      email: "admin@erp.local",
+      passwordHash: await bcrypt.hash("admin123", 10),
+      rolId: admin.id,
+      esSuperAdmin: true,
+    },
+  });
 
   const central = await prisma.deposito.upsert({
-    where: { nombre: "Depósito Central" },
+    where: { empresaId_nombre: { empresaId, nombre: "Depósito Central" } },
     update: {},
-    create: { nombre: "Depósito Central", direccion: "Casa matriz" },
+    create: { empresaId, nombre: "Depósito Central", direccion: "Casa matriz" },
   });
   await prisma.deposito.upsert({
-    where: { nombre: "Sucursal 1" },
+    where: { empresaId_nombre: { empresaId, nombre: "Sucursal 1" } },
     update: {},
-    create: { nombre: "Sucursal 1" },
+    create: { empresaId, nombre: "Sucursal 1" },
   });
 
   const cats = await Promise.all(
     ["Bebidas", "Almacén", "Limpieza"].map((nombre) =>
-      prisma.categoria.upsert({ where: { nombre }, update: {}, create: { nombre } }),
+      prisma.categoria.upsert({ where: { empresaId_nombre: { empresaId, nombre } }, update: {}, create: { empresaId, nombre } }),
     ),
   );
 
@@ -74,27 +79,27 @@ async function main() {
 
   for (const { stock, ...p } of productos) {
     const prod = await prisma.producto.upsert({
-      where: { codigo: p.codigo },
+      where: { empresaId_codigo: { empresaId, codigo: p.codigo } },
       update: {},
-      create: { ...p, stockMinimo: 10 },
+      create: { ...p, empresaId, stockMinimo: 10 },
     });
     const existe = await prisma.stock.findUnique({
       where: { productoId_depositoId: { productoId: prod.id, depositoId: central.id } },
     });
     if (!existe) {
-      await prisma.stock.create({ data: { productoId: prod.id, depositoId: central.id, cantidad: stock } });
+      await prisma.stock.create({ data: { empresaId, productoId: prod.id, depositoId: central.id, cantidad: stock } });
       await prisma.movimientoStock.create({
-        data: { productoId: prod.id, depositoId: central.id, cantidad: stock, origen: "AJUSTE", nota: "Inventario inicial" },
+        data: { empresaId, productoId: prod.id, depositoId: central.id, cantidad: stock, origen: "AJUSTE", nota: "Inventario inicial" },
       });
     }
   }
 
-  if ((await prisma.contacto.count()) === 0) {
+  if ((await prisma.contacto.count({ where: { empresaId } })) === 0) {
     await prisma.contacto.createMany({
       data: [
-        { nombre: "Cliente Ocasional", ruc: "44444401-7", esCliente: true },
-        { nombre: "Supermercado El Sol S.R.L.", ruc: "80012345-6", telefono: "0981 111 222", esCliente: true },
-        { nombre: "Distribuidora Guaraní S.A.", ruc: "80098765-4", telefono: "021 555 444", esProveedor: true },
+        { empresaId, nombre: "Cliente Ocasional", ruc: "44444401-7", esCliente: true },
+        { empresaId, nombre: "Supermercado El Sol S.R.L.", ruc: "80012345-6", telefono: "0981 111 222", esCliente: true },
+        { empresaId, nombre: "Distribuidora Guaraní S.A.", ruc: "80098765-4", telefono: "021 555 444", esProveedor: true },
       ],
     });
   }

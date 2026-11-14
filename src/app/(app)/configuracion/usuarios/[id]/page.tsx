@@ -1,23 +1,41 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { Trash2 } from "lucide-react";
+import { getTenant } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
+import { AccionBoton } from "@/components/accion-boton";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { guardarUsuario } from "../actions";
+import { guardarUsuario, eliminarUsuario } from "../actions";
 
 export default async function UsuarioPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const nuevo = id === "nuevo";
+  const { s, db } = await getTenant("configuracion");
   const [u, roles] = await Promise.all([
-    nuevo ? null : prisma.usuario.findUnique({ where: { id: Number(id) } }),
-    prisma.rol.findMany({ orderBy: { nombre: "asc" } }),
+    nuevo ? null : db.usuario.findUnique({ where: { id: Number(id) } }),
+    db.rol.findMany({ orderBy: { nombre: "asc" } }),
   ]);
   if (!nuevo && !u) notFound();
 
+  const esPropio = !nuevo && u!.id === s.userId;
+
   return (
     <>
-      <PageHeader title={nuevo ? "Nuevo usuario" : u!.nombre} />
+      <PageHeader
+        title={nuevo ? "Nuevo usuario" : u!.nombre}
+        actions={
+          !nuevo && !esPropio && (
+            <AccionBoton
+              action={eliminarUsuario.bind(null, u!.id)}
+              variant="destructive"
+              confirm={`¿Eliminar al usuario "${u!.nombre}"? Esta acción no se puede deshacer.`}
+            >
+              <Trash2 /> Eliminar
+            </AccionBoton>
+          )
+        }
+      />
       <Card className="max-w-xl">
         <CardContent className="pt-5">
           <ActionForm action={guardarUsuario} className="grid gap-4">

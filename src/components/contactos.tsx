@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { Plus, Trash2 } from "lucide-react";
+import { getTenant } from "@/lib/auth";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { SearchBar } from "@/components/search-bar";
+import { AccionBoton } from "@/components/accion-boton";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { guardarContacto } from "@/app/(app)/contactos-actions";
+import { guardarContacto, eliminarContacto } from "@/app/(app)/contactos-actions";
 
 type Tipo = "cliente" | "proveedor";
 const cfg = {
@@ -20,7 +21,8 @@ const cfg = {
 
 export async function ContactosList({ tipo, q }: { tipo: Tipo; q?: string }) {
   const c = cfg[tipo];
-  const contactos = await prisma.contacto.findMany({
+  const { db } = await getTenant();
+  const contactos = await db.contacto.findMany({
     where: {
       ...(tipo === "cliente" ? { esCliente: true } : { esProveedor: true }),
       ...(q && { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { ruc: { contains: q } }] }),
@@ -63,12 +65,26 @@ export async function ContactosList({ tipo, q }: { tipo: Tipo; q?: string }) {
 export async function ContactoEdit({ tipo, id }: { tipo: Tipo; id: string }) {
   const c = cfg[tipo];
   const nuevo = id === "nuevo";
-  const x = nuevo ? null : await prisma.contacto.findUnique({ where: { id: Number(id) } });
+  const { db } = await getTenant();
+  const x = nuevo ? null : await db.contacto.findUnique({ where: { id: Number(id) } });
   if (!nuevo && !x) notFound();
 
   return (
     <>
-      <PageHeader title={nuevo ? `Nuevo ${c.singular}` : x!.nombre} />
+      <PageHeader
+        title={nuevo ? `Nuevo ${c.singular}` : x!.nombre}
+        actions={
+          !nuevo && (
+            <AccionBoton
+              action={eliminarContacto.bind(null, x!.id, tipo)}
+              variant="destructive"
+              confirm={`¿Eliminar al ${c.singular} "${x!.nombre}"? Esta acción no se puede deshacer.`}
+            >
+              <Trash2 /> Eliminar
+            </AccionBoton>
+          )
+        }
+      />
       <Card className="max-w-2xl">
         <CardContent className="pt-5">
           <ActionForm action={guardarContacto} className="grid gap-4">

@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { productosOpcion } from "@/lib/lineas";
 import { toNum } from "@/lib/utils";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
 import { LineasEditor } from "@/components/lineas-editor";
+import { ClienteCombo } from "@/components/cliente-combo";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +20,10 @@ type FacturaEditable = {
 };
 
 export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
+  const { db } = await getTenant();
   const [clientes, depositos, productos] = await Promise.all([
-    prisma.contacto.findMany({ where: { esCliente: true, activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
+    db.contacto.findMany({ where: { esCliente: true, activo: true }, orderBy: { nombre: "asc" } }),
+    db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
     productosOpcion(),
   ]);
 
@@ -31,9 +33,14 @@ export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
       <Card>
         <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Cliente" className="sm:col-span-2">
-            <NativeSelect name="clienteId" defaultValue={factura?.clienteId ?? clientes[0]?.id ?? ""} required>
-              {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.ruc ? ` — ${c.ruc}` : ""}</option>)}
-            </NativeSelect>
+            <ClienteCombo
+              defaultValue={String(factura?.clienteId ?? clientes[0]?.id ?? "")}
+              clientes={clientes.map((c) => ({
+                value: String(c.id),
+                label: `${c.nombre}${c.ruc ? ` — ${c.ruc}` : ""}`,
+                keywords: `${c.nombre} ${c.ruc ?? ""}`,
+              }))}
+            />
           </Field>
           <Field label="Depósito de salida">
             <NativeSelect name="depositoId" defaultValue={factura?.depositoId ?? depositos[0]?.id} required>

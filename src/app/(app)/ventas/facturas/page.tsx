@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import type { EstadoFactura, Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { formatFecha, formatGs } from "@/lib/utils";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { SearchBar } from "@/components/search-bar";
@@ -19,7 +19,8 @@ export default async function FacturasPage({ searchParams }: { searchParams: Pro
     ...(estado && { estado: estado as EstadoFactura }),
     ...(q && { OR: [{ numero: { contains: q } }, { cliente: { nombre: { contains: q, mode: "insensitive" } } }] }),
   };
-  const facturas = await prisma.factura.findMany({ where, include: { cliente: true }, orderBy: { id: "desc" }, take: 200 });
+  const { db } = await getTenant();
+  const facturas = await db.factura.findMany({ where, include: { cliente: true }, orderBy: { id: "desc" }, take: 200 });
 
   return (
     <>

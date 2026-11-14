@@ -2,8 +2,8 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { requirePermiso } from "@/lib/auth";
+import { getTenant } from "@/lib/auth";
+import { auditar } from "@/lib/auditoria";
 import { formObj, mensajeError, zodMsg, zOptStr, type ActionState } from "@/lib/action";
 
 const schema = z
@@ -24,10 +24,12 @@ const schema = z
 
 export async function guardarEmpresa(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    await requirePermiso("configuracion");
+    const { s, db } = await getTenant("configuracion");
     const p = schema.safeParse(formObj(fd));
     if (!p.success) return { error: zodMsg(p.error) };
-    await prisma.empresa.upsert({ where: { id: 1 }, create: { id: 1, ...p.data }, update: p.data });
+    const antes = await db.empresa.findUnique({ where: { id: s.empresaId } });
+    const despues = await db.empresa.update({ where: { id: s.empresaId }, data: p.data });
+    await auditar({ modulo: "configuracion", entidad: "Empresa", entidadId: s.empresaId, accion: "EDITAR", resumen: `Actualizó los datos de la empresa y el timbrado`, antes, despues });
     revalidatePath("/configuracion/empresa");
     return { ok: "Datos guardados" };
   } catch (e) {

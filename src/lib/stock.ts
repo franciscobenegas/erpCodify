@@ -1,8 +1,11 @@
 import "server-only";
-import { Prisma, type OrigenMovimiento } from "@prisma/client";
+import { type OrigenMovimiento } from "@prisma/client";
+import type { TenantDb } from "./tenant-db";
 import { ErrorNegocio } from "./action";
 
-type Tx = Prisma.TransactionClient;
+// Cliente de transacción del cliente scopeado (tenantDb): igual que
+// Prisma.TransactionClient pero conservando la extensión que inyecta empresaId.
+type Tx = Omit<TenantDb, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
 /**
  * Único punto de entrada para cambiar stock: actualiza el saldo del depósito
@@ -11,6 +14,7 @@ type Tx = Prisma.TransactionClient;
 export async function moverStock(
   tx: Tx,
   m: {
+    empresaId: number;
     productoId: number;
     depositoId: number;
     cantidad: number; // + entra, - sale
@@ -25,7 +29,7 @@ export async function moverStock(
 
   const stock = await tx.stock.upsert({
     where: { productoId_depositoId: { productoId: m.productoId, depositoId: m.depositoId } },
-    create: { productoId: m.productoId, depositoId: m.depositoId, cantidad: m.cantidad },
+    create: { empresaId: m.empresaId, productoId: m.productoId, depositoId: m.depositoId, cantidad: m.cantidad },
     update: { cantidad: { increment: m.cantidad } },
     include: { producto: { select: { nombre: true } }, deposito: { select: { nombre: true } } },
   });
@@ -39,6 +43,7 @@ export async function moverStock(
 
   await tx.movimientoStock.create({
     data: {
+      empresaId: m.empresaId,
       productoId: m.productoId,
       depositoId: m.depositoId,
       cantidad: m.cantidad,

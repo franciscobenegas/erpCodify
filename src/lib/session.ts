@@ -6,10 +6,12 @@ const DURACION_SEG = 60 * 60 * 12; // 12 horas
 
 export type SessionPayload = {
   userId: number;
+  empresaId: number;
   nombre: string;
   email: string;
   rol: string;
   permisos: string[];
+  esSuperAdmin: boolean;
 };
 
 function secret() {
@@ -30,6 +32,10 @@ export async function verificarSesion(token?: string): Promise<SessionPayload | 
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
+    const p = payload as Partial<SessionPayload>;
+    // Rechazar tokens de versiones previas sin contexto de empresa: sin empresaId,
+    // tenantDb no podría scopear y habría riesgo de fuga entre empresas.
+    if (typeof p.userId !== "number" || typeof p.empresaId !== "number") return null;
     return payload as unknown as SessionPayload;
   } catch {
     return null;

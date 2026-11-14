@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { formatGs, formatQty, toNum } from "@/lib/utils";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { SearchBar } from "@/components/search-bar";
@@ -12,9 +12,10 @@ export const metadata = { title: "Stock" };
 
 export default async function StockPage({ searchParams }: { searchParams: Promise<{ q?: string; bajo?: string }> }) {
   const { q, bajo } = await searchParams;
+  const { db } = await getTenant();
   const [depositos, productos] = await Promise.all([
-    prisma.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
-    prisma.producto.findMany({
+    db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
+    db.producto.findMany({
       where: {
         activo: true,
         ...(q && { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { codigo: { contains: q, mode: "insensitive" } }] }),

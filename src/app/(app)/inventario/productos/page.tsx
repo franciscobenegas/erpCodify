@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { formatGs, formatQty, toNum } from "@/lib/utils";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { SearchBar } from "@/components/search-bar";
@@ -19,9 +19,10 @@ export default async function ProductosPage({ searchParams }: { searchParams: Pr
     ...(q && { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { codigo: { contains: q, mode: "insensitive" } }] }),
     ...(cat && { categoriaId: Number(cat) }),
   };
+  const { db } = await getTenant();
   const [productos, categorias] = await Promise.all([
-    prisma.producto.findMany({ where, include: { categoria: true, stocks: true }, orderBy: { nombre: "asc" }, take: 200 }),
-    prisma.categoria.findMany({ orderBy: { nombre: "asc" } }),
+    db.producto.findMany({ where, include: { categoria: true, stocks: true }, orderBy: { nombre: "asc" }, take: 200 }),
+    db.categoria.findMany({ orderBy: { nombre: "asc" } }),
   ]);
 
   return (

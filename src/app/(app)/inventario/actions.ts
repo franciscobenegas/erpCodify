@@ -3,9 +3,9 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { requirePermiso } from "@/lib/auth";
+import { getTenant } from "@/lib/auth";
 import { moverStock } from "@/lib/stock";
+import { auditar } from "@/lib/auditoria";
 import { ErrorNegocio, formObj, mensajeError, zNum, zodMsg, zOptStr, type ActionState } from "@/lib/action";
 
 // ───────── Productos ─────────
@@ -26,12 +26,22 @@ const productoSchema = z.object({
 
 export async function guardarProducto(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    await requirePermiso("inventario");
+    const { s, db } = await getTenant("inventario");
     const p = productoSchema.safeParse(formObj(fd));
     if (!p.success) return { error: zodMsg(p.error) };
     const { id, ...data } = p.data;
-    if (id) await prisma.producto.update({ where: { id }, data });
-    else await prisma.producto.create({ data });
+    // La categoría referenciada debe ser de esta empresa (el id viene del formulario).
+    if (data.categoriaId != null && !(await db.categoria.findUnique({ where: { id: data.categoriaId }, select: { id: true } }))) {
+      throw new ErrorNegocio("Categoría inválida");
+    }
+    if (id) {
+      const antes = await db.producto.findUnique({ where: { id } });
+      const despues = await db.producto.update({ where: { id }, data });
+      await auditar({ modulo: "inventario", entidad: "Producto", entidadId: id, accion: "EDITAR", resumen: `Editó el producto ${despues.codigo} · ${despues.nombre}`, antes, despues });
+    } else {
+      const despues = await db.producto.create({ data: { ...data, empresaId: s.empresaId } });
+      await auditar({ modulo: "inventario", entidad: "Producto", entidadId: despues.id, accion: "CREAR", resumen: `Creó el producto ${despues.codigo} · ${despues.nombre}`, despues });
+    }
   } catch (e) {
     return { error: mensajeError(e) };
   }
@@ -43,10 +53,11 @@ export async function guardarProducto(_: ActionState, fd: FormData): Promise<Act
 
 export async function crearCategoria(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    await requirePermiso("inventario");
+    const { s, db } = await getTenant("inventario");
     const nombre = String(fd.get("nombre") ?? "").trim();
     if (!nombre) throw new ErrorNegocio("Ingresá un nombre");
-    await prisma.categoria.create({ data: { nombre } });
+    const despues = await db.categoria.create({ data: { nombre, empresaId: s.empresaId } });
+    await auditar({ modulo: "inventario", entidad: "Categoria", entidadId: despues.id, accion: "CREAR", resumen: `Creó la categoría "${nombre}"`, despues });
     revalidatePath("/inventario/categorias");
     return { ok: `Categoría "${nombre}" creada` };
   } catch (e) {
@@ -56,11 +67,12 @@ export async function crearCategoria(_: ActionState, fd: FormData): Promise<Acti
 
 export async function crearDeposito(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    await requirePermiso("inventario");
+    const { s, db } = await getTenant("inventario");
     const nombre = String(fd.get("nombre") ?? "").trim();
     const direccion = String(fd.get("direccion") ?? "").trim() || null;
     if (!nombre) throw new ErrorNegocio("Ingresá un nombre");
-    await prisma.deposito.create({ data: { nombre, direccion } });
+    const despues = await db.deposito.create({ data: { nombre, direccion, empresaId: s.empresaId } });
+    await auditar({ modulo: "inventario", entidad: "Deposito", entidadId: despues.id, accion: "CREAR", resumen: `Creó el depósito "${nombre}"`, despues });
     revalidatePath("/inventario/depositos");
     return { ok: `Depósito "${nombre}" creado` };
   } catch (e) {
@@ -80,19 +92,40 @@ const ajusteSchema = z.object({
 
 export async function ajustarStock(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const s = await requirePermiso("inventario");
+    const { s, db } = await getTenant("inventario");
     const p = ajusteSchema.safeParse(formObj(fd));
     if (!p.success) return { error: zodMsg(p.error) };
     const { productoId, depositoId, modo, cantidad, nota } = p.data;
 
-    await prisma.$transaction(async (tx) => {
+    // Producto y depósito deben ser de esta empresa (los ids vienen del formulario).
+    const [okProd, okDep] = await Promise.all([
+      db.producto.findUnique({ where: { id: productoId }, select: { id: true } }),
+      db.deposito.findUnique({ where: { id: depositoId }, select: { id: true } }),
+    ]);
+    if (!okProd) throw new ErrorNegocio("Producto inválido");
+    if (!okDep) throw new ErrorNegocio("Depósito inválido");
+
+    const r = await db.$transaction(async (tx) => {
+      const previo = Number((await tx.stock.findUnique({ where: { productoId_depositoId: { productoId, depositoId } } }))?.cantidad ?? 0);
       let delta = modo === "sumar" ? cantidad : -cantidad;
-      if (modo === "fijar") {
-        const actual = await tx.stock.findUnique({ where: { productoId_depositoId: { productoId, depositoId } } });
-        delta = cantidad - Number(actual?.cantidad ?? 0);
-      }
+      if (modo === "fijar") delta = cantidad - previo;
       if (delta === 0) throw new ErrorNegocio("El ajuste no cambia el stock");
-      await moverStock(tx, { productoId, depositoId, cantidad: delta, origen: "AJUSTE", nota, usuarioId: s.userId });
+      await moverStock(tx, { empresaId: s.empresaId, productoId, depositoId, cantidad: delta, origen: "AJUSTE", nota, usuarioId: s.userId });
+      return { previo, delta };
+    });
+
+    const [producto, deposito] = await Promise.all([
+      db.producto.findUnique({ where: { id: productoId }, select: { codigo: true, nombre: true } }),
+      db.deposito.findUnique({ where: { id: depositoId }, select: { nombre: true } }),
+    ]);
+    await auditar({
+      modulo: "inventario",
+      entidad: "Stock",
+      entidadId: `${productoId}-${depositoId}`,
+      accion: "AJUSTE",
+      resumen: `Ajustó stock de ${producto?.nombre ?? `#${productoId}`} en ${deposito?.nombre ?? `#${depositoId}`} (${r.delta > 0 ? "+" : ""}${r.delta})`,
+      antes: { productoId, depositoId, cantidad: r.previo },
+      despues: { productoId, depositoId, cantidad: r.previo + r.delta, modo, nota },
     });
 
     revalidatePath("/inventario", "layout");
@@ -112,16 +145,35 @@ const transferSchema = z.object({
 
 export async function transferirStock(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
-    const s = await requirePermiso("inventario");
+    const { s, db } = await getTenant("inventario");
     const p = transferSchema.safeParse(formObj(fd));
     if (!p.success) return { error: zodMsg(p.error) };
     const { productoId, origenId, destinoId, cantidad, nota } = p.data;
     if (origenId === destinoId) throw new ErrorNegocio("El origen y el destino deben ser distintos");
 
-    await prisma.$transaction(async (tx) => {
-      const ref = `TRF-${Date.now()}`;
-      await moverStock(tx, { productoId, depositoId: origenId, cantidad: -cantidad, origen: "TRANSFERENCIA", referencia: ref, nota, usuarioId: s.userId });
-      await moverStock(tx, { productoId, depositoId: destinoId, cantidad, origen: "TRANSFERENCIA", referencia: ref, nota, usuarioId: s.userId });
+    // Producto y depósitos deben ser de esta empresa (los ids vienen del formulario).
+    const [okProd, okOrigen, okDestino] = await Promise.all([
+      db.producto.findUnique({ where: { id: productoId }, select: { id: true } }),
+      db.deposito.findUnique({ where: { id: origenId }, select: { id: true } }),
+      db.deposito.findUnique({ where: { id: destinoId }, select: { id: true } }),
+    ]);
+    if (!okProd) throw new ErrorNegocio("Producto inválido");
+    if (!okOrigen || !okDestino) throw new ErrorNegocio("Depósito inválido");
+
+    const ref = `TRF-${Date.now()}`;
+    await db.$transaction(async (tx) => {
+      await moverStock(tx, { empresaId: s.empresaId, productoId, depositoId: origenId, cantidad: -cantidad, origen: "TRANSFERENCIA", referencia: ref, nota, usuarioId: s.userId });
+      await moverStock(tx, { empresaId: s.empresaId, productoId, depositoId: destinoId, cantidad, origen: "TRANSFERENCIA", referencia: ref, nota, usuarioId: s.userId });
+    });
+
+    const producto = await db.producto.findUnique({ where: { id: productoId }, select: { nombre: true } });
+    await auditar({
+      modulo: "inventario",
+      entidad: "Stock",
+      entidadId: String(productoId),
+      accion: "TRANSFERENCIA",
+      resumen: `Transfirió ${cantidad} de ${producto?.nombre ?? `#${productoId}`} entre depósitos`,
+      despues: { productoId, origenId, destinoId, cantidad, referencia: ref, nota },
     });
 
     revalidatePath("/inventario", "layout");

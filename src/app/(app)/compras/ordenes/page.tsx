@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import type { EstadoOrdenCompra } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { formatFecha, formatGs } from "@/lib/utils";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { EstadoBadge } from "@/components/estado-badge";
@@ -14,7 +14,8 @@ export const metadata = { title: "Órdenes de compra" };
 
 export default async function OrdenesPage({ searchParams }: { searchParams: Promise<{ estado?: string }> }) {
   const { estado } = await searchParams;
-  const ordenes = await prisma.ordenCompra.findMany({
+  const { db } = await getTenant();
+  const ordenes = await db.ordenCompra.findMany({
     where: estado ? { estado: estado as EstadoOrdenCompra } : undefined,
     include: { proveedor: true, deposito: true },
     orderBy: { id: "desc" },

@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input, NativeSelect } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
+import { Input } from "@/components/ui/input";
 import { calcularTotales } from "@/lib/iva";
 import { formatGs } from "@/lib/utils";
 
@@ -38,6 +39,15 @@ export function LineasEditor({
   iniciales?: LineaInicial[];
 }) {
   const porId = useMemo(() => new Map(productos.map((p) => [p.id, p])), [productos]);
+  const opciones = useMemo(
+    () =>
+      productos.map((p) => ({
+        value: String(p.id),
+        label: `${p.codigo} · ${p.nombre}${modo === "venta" ? ` (IVA ${p.tasaIva === 0 ? "exenta" : p.tasaIva + "%"})` : ""}`,
+        keywords: `${p.codigo} ${p.nombre}`,
+      })),
+    [productos, modo],
+  );
   const [lineas, setLineas] = useState<Linea[]>(() =>
     iniciales.length
       ? iniciales.map((l) => ({ key: ++seq, ...l }))
@@ -80,19 +90,15 @@ export function LineasEditor({
         const p = l.productoId !== "" ? porId.get(l.productoId) : undefined;
         return (
           <div key={l.key} className="grid grid-cols-2 gap-2 rounded-lg border p-2 md:grid-cols-[1fr_110px_150px_150px_40px] md:rounded-none md:border-0 md:p-0">
-            <NativeSelect
+            <Combobox
               className="col-span-2 md:col-span-1"
-              value={l.productoId}
-              onChange={(e) => elegirProducto(l.key, e.target.value)}
+              value={l.productoId === "" ? "" : String(l.productoId)}
+              onChange={(v) => elegirProducto(l.key, v)}
+              options={opciones}
+              placeholder="Elegí un producto…"
+              searchPlaceholder="Buscar por código o nombre…"
               aria-label="Producto"
-            >
-              <option value="">Elegí un producto…</option>
-              {productos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.codigo} · {p.nombre} {modo === "venta" && `(IVA ${p.tasaIva === 0 ? "exenta" : p.tasaIva + "%"})`}
-                </option>
-              ))}
-            </NativeSelect>
+            />
             <Input
               type="number" min={0} step="any" className="text-right" aria-label="Cantidad"
               value={l.cantidad}

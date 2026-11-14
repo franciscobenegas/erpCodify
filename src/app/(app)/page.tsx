@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { getTenant } from "@/lib/auth";
 import { APP_TZ, formatFecha, formatGs, formatQty, hoyISO, toNum } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { EstadoBadge } from "@/components/estado-badge";
@@ -15,17 +14,17 @@ const claveDia = new Intl.DateTimeFormat("en-CA", { timeZone: APP_TZ }); // "202
 const inicioDia = (iso: string) => new Date(`${iso}T00:00:00-03:00`);
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ sinPermiso?: string }> }) {
-  const [s, { sinPermiso }] = await Promise.all([requireSession(), searchParams]);
+  const [{ s, db }, { sinPermiso }] = await Promise.all([getTenant(), searchParams]);
   const hoy = hoyISO();
   const inicioMes = inicioDia(hoy.slice(0, 8) + "01");
   const hace14 = new Date(inicioDia(hoy).getTime() - 13 * 86_400_000);
 
   const [ventasMes, comprasPend, productos, ultimas, ventas14] = await Promise.all([
-    prisma.factura.aggregate({ where: { estado: "EMITIDA", fecha: { gte: inicioMes } }, _sum: { total: true }, _count: true }),
-    prisma.ordenCompra.aggregate({ where: { estado: "CONFIRMADA" }, _sum: { total: true }, _count: true }),
-    prisma.producto.findMany({ where: { activo: true }, include: { stocks: true } }),
-    prisma.factura.findMany({ where: { estado: { not: "BORRADOR" } }, include: { cliente: true }, orderBy: { fecha: "desc" }, take: 6 }),
-    prisma.factura.findMany({ where: { estado: "EMITIDA", fecha: { gte: hace14 } }, select: { fecha: true, total: true } }),
+    db.factura.aggregate({ where: { estado: "EMITIDA", fecha: { gte: inicioMes } }, _sum: { total: true }, _count: true }),
+    db.ordenCompra.aggregate({ where: { estado: "CONFIRMADA" }, _sum: { total: true }, _count: true }),
+    db.producto.findMany({ where: { activo: true }, include: { stocks: true } }),
+    db.factura.findMany({ where: { estado: { not: "BORRADOR" } }, include: { cliente: true }, orderBy: { fecha: "desc" }, take: 6 }),
+    db.factura.findMany({ where: { estado: "EMITIDA", fecha: { gte: hace14 } }, select: { fecha: true, total: true } }),
   ]);
 
   const conStock = productos.map((p) => ({ p, total: p.stocks.reduce((a, x) => a + toNum(x.cantidad), 0) }));

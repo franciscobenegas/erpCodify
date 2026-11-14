@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { formatQty, toNum } from "@/lib/utils";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
@@ -19,15 +19,16 @@ const fechaHora = new Intl.DateTimeFormat("es-PY", { dateStyle: "short", timeSty
 
 export default async function MovimientosPage({ searchParams }: { searchParams: Promise<{ producto?: string }> }) {
   const { producto } = await searchParams;
+  const { db } = await getTenant();
   const [movs, productos, depositos] = await Promise.all([
-    prisma.movimientoStock.findMany({
+    db.movimientoStock.findMany({
       where: producto ? { productoId: Number(producto) } : undefined,
       include: { producto: true, deposito: true, usuario: true },
       orderBy: { fecha: "desc" },
       take: 200,
     }),
-    prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, codigo: true } }),
-    prisma.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
+    db.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, codigo: true } }),
+    db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
   ]);
 
   const selProducto = (

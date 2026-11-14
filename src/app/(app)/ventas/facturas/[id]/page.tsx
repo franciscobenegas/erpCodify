@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FileDown, Pencil } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { formatFecha, formatGs, formatQty } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { EstadoBadge } from "@/components/estado-badge";
@@ -19,7 +19,8 @@ export default async function FacturaPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const [{ id }, { error }] = await Promise.all([params, searchParams]);
-  const f = await prisma.factura.findUnique({
+  const { db } = await getTenant();
+  const f = await db.factura.findUnique({
     where: { id: Number(id) },
     include: { cliente: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } } },
   });

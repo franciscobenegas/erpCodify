@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,8 @@ export const metadata = { title: "Empresa" };
 const iso = (d?: Date) => (d ? d.toISOString().slice(0, 10) : "");
 
 export default async function EmpresaPage() {
-  const e = await prisma.empresa.findUnique({ where: { id: 1 } });
+  const { s, db } = await getTenant("configuracion");
+  const e = await db.empresa.findUnique({ where: { id: s.empresaId } });
   return (
     <>
       <PageHeader title="Empresa y timbrado" description="Datos que se imprimen en las facturas" />

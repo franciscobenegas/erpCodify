@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { productosOpcion } from "@/lib/lineas";
 import { toNum } from "@/lib/utils";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
@@ -18,9 +18,10 @@ type OrdenEditable = {
 };
 
 export async function OrdenForm({ orden }: { orden?: OrdenEditable }) {
+  const { db } = await getTenant();
   const [proveedores, depositos, productos] = await Promise.all([
-    prisma.contacto.findMany({ where: { esProveedor: true, activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
+    db.contacto.findMany({ where: { esProveedor: true, activo: true }, orderBy: { nombre: "asc" } }),
+    db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
     productosOpcion(),
   ]);
 

@@ -7,41 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ───────────── Seguridad ─────────────
+// ───────────── Empresa (tenant) ─────────────
 
-model Rol {
-  id        Int       @id @default(autoincrement())
-  nombre    String    @unique
-  // Módulos habilitados: "inventario" | "ventas" | "compras" | "configuracion"
-  permisos  String[]
-  usuarios  Usuario[]
-  createdAt DateTime  @default(now())
-}
-
-model Usuario {
-  id           Int      @id @default(autoincrement())
-  nombre       String
-  email        String   @unique
-  passwordHash String
-  activo       Boolean  @default(true)
-  rolId        Int
-  rol          Rol      @relation(fields: [rolId], references: [id])
-  createdAt    DateTime @default(now())
-
-  facturas    Factura[]
-  ordenes     OrdenCompra[]
-  movimientos MovimientoStock[]
-}
-
-// ───────────── Empresa ─────────────
-
+// Cada Empresa es un inquilino (tenant) del sistema. Todos los datos de negocio
+// cuelgan de una empresa vía empresaId. El aislamiento se garantiza en la capa
+// de aplicación con tenantDb() (ver src/lib/tenant-db.ts).
 model Empresa {
-  id               Int       @id @default(1)
+  id               Int       @id @default(autoincrement())
   razonSocial      String
   ruc              String
   direccion        String?
   telefono         String?
   email            String?
+  activo           Boolean   @default(true)
+  // Código que un administrador comparte para que nuevos usuarios soliciten unirse.
+  codigoInvitacion String?   @unique
   // Datos de timbrado (SET)
   timbrado         String
   timbradoInicio   DateTime  @db.Date
@@ -49,20 +29,76 @@ model Empresa {
   establecimiento  String    @default("001")
   puntoExpedicion  String    @default("001")
   siguienteNumero  Int       @default(1)
+  createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+
+  usuarios    Usuario[]
+  roles       Rol[]
+  categorias  Categoria[]
+  productos   Producto[]
+  depositos   Deposito[]
+  stocks      Stock[]
+  movimientos MovimientoStock[]
+  contactos   Contacto[]
+  facturas    Factura[]
+  ordenes     OrdenCompra[]
+  auditorias  Auditoria[]
+}
+
+// ───────────── Seguridad ─────────────
+
+model Rol {
+  id        Int       @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa   @relation(fields: [empresaId], references: [id])
+  nombre    String
+  // Módulos habilitados: "inventario" | "ventas" | "compras" | "configuracion"
+  permisos  String[]
+  usuarios  Usuario[]
+  createdAt DateTime  @default(now())
+
+  @@unique([empresaId, nombre])
+}
+
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  empresaId    Int
+  empresa      Empresa  @relation(fields: [empresaId], references: [id])
+  nombre       String
+  // El email es único a nivel global: un usuario pertenece a una sola empresa.
+  email        String   @unique
+  passwordHash String
+  activo       Boolean  @default(true)
+  // Administrador de plataforma: puede crear empresas y su primer usuario.
+  esSuperAdmin Boolean  @default(false)
+  rolId        Int
+  rol          Rol      @relation(fields: [rolId], references: [id])
+  createdAt    DateTime @default(now())
+
+  facturas    Factura[]
+  ordenes     OrdenCompra[]
+  movimientos MovimientoStock[]
+
+  @@index([empresaId])
 }
 
 // ───────────── Inventario ─────────────
 
 model Categoria {
   id        Int        @id @default(autoincrement())
-  nombre    String     @unique
+  empresaId Int
+  empresa   Empresa    @relation(fields: [empresaId], references: [id])
+  nombre    String
   productos Producto[]
+
+  @@unique([empresaId, nombre])
 }
 
 model Producto {
   id          Int        @id @default(autoincrement())
-  codigo      String     @unique
+  empresaId   Int
+  empresa     Empresa    @relation(fields: [empresaId], references: [id])
+  codigo      String
   nombre      String
   descripcion String?
   unidad      String     @default("UN")
@@ -81,20 +117,28 @@ model Producto {
   movimientos  MovimientoStock[]
   lineasVenta  FacturaLinea[]
   lineasCompra OrdenCompraLinea[]
+
+  @@unique([empresaId, codigo])
 }
 
 model Deposito {
   id          Int               @id @default(autoincrement())
-  nombre      String            @unique
+  empresaId   Int
+  empresa     Empresa           @relation(fields: [empresaId], references: [id])
+  nombre      String
   direccion   String?
   activo      Boolean           @default(true)
   stocks      Stock[]
   movimientos MovimientoStock[]
   facturas    Factura[]
   ordenes     OrdenCompra[]
+
+  @@unique([empresaId, nombre])
 }
 
 model Stock {
+  empresaId  Int
+  empresa    Empresa  @relation(fields: [empresaId], references: [id])
   productoId Int
   depositoId Int
   cantidad   Decimal  @default(0) @db.Decimal(14, 3)
@@ -102,6 +146,7 @@ model Stock {
   deposito   Deposito @relation(fields: [depositoId], references: [id])
 
   @@id([productoId, depositoId])
+  @@index([empresaId])
 }
 
 enum OrigenMovimiento {
@@ -114,6 +159,8 @@ enum OrigenMovimiento {
 
 model MovimientoStock {
   id         Int              @id @default(autoincrement())
+  empresaId  Int
+  empresa    Empresa          @relation(fields: [empresaId], references: [id])
   fecha      DateTime         @default(now())
   productoId Int
   depositoId Int
@@ -128,12 +175,15 @@ model MovimientoStock {
   usuario    Usuario?         @relation(fields: [usuarioId], references: [id])
 
   @@index([productoId, fecha])
+  @@index([empresaId])
 }
 
 // ───────────── Contactos (clientes y proveedores) ─────────────
 
 model Contacto {
   id          Int      @id @default(autoincrement())
+  empresaId   Int
+  empresa     Empresa  @relation(fields: [empresaId], references: [id])
   nombre      String
   ruc         String?
   telefono    String?
@@ -146,6 +196,8 @@ model Contacto {
 
   facturas Factura[]
   ordenes  OrdenCompra[]
+
+  @@index([empresaId])
 }
 
 // ───────────── Ventas ─────────────
@@ -163,8 +215,10 @@ enum CondicionVenta {
 
 model Factura {
   id          Int            @id @default(autoincrement())
+  empresaId   Int
+  empresa     Empresa        @relation(fields: [empresaId], references: [id])
   // 001-001-0000001; null mientras es borrador
-  numero      String?        @unique
+  numero      String?
   timbrado    String?
   fecha       DateTime       @default(now())
   clienteId   Int
@@ -186,6 +240,9 @@ model Factura {
   deposito Deposito       @relation(fields: [depositoId], references: [id])
   usuario  Usuario?       @relation(fields: [usuarioId], references: [id])
   lineas   FacturaLinea[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId])
 }
 
 model FacturaLinea {
@@ -212,6 +269,8 @@ enum EstadoOrdenCompra {
 
 model OrdenCompra {
   id                Int               @id @default(autoincrement())
+  empresaId         Int
+  empresa           Empresa           @relation(fields: [empresaId], references: [id])
   fecha             DateTime          @default(now())
   proveedorId       Int
   depositoId        Int
@@ -227,6 +286,8 @@ model OrdenCompra {
   deposito  Deposito           @relation(fields: [depositoId], references: [id])
   usuario   Usuario?           @relation(fields: [usuarioId], references: [id])
   lineas    OrdenCompraLinea[]
+
+  @@index([empresaId])
 }
 
 model OrdenCompraLinea {
@@ -238,4 +299,38 @@ model OrdenCompraLinea {
   subtotal    Decimal     @db.Decimal(18, 2)
   orden       OrdenCompra @relation(fields: [ordenId], references: [id], onDelete: Cascade)
   producto    Producto    @relation(fields: [productoId], references: [id])
+}
+
+// ───────────── Auditoría ─────────────
+
+// Bitácora inmutable de todas las operaciones del sistema.
+// El usuario se guarda desnormalizado (id + nombre) a propósito: el registro debe
+// sobrevivir aunque luego se borre o renombre el usuario, sin FK que lo ate.
+model Auditoria {
+  id            Int      @id @default(autoincrement())
+  // Empresa a la que pertenece el evento. Null en acciones sin contexto de empresa
+  // (ej. intento de login con un email inexistente).
+  empresaId     Int?
+  empresa       Empresa? @relation(fields: [empresaId], references: [id])
+  fecha         DateTime @default(now())
+  // Autor de la operación (snapshot). usuarioId es null en acciones del sistema o logins fallidos.
+  usuarioId     Int?
+  usuarioNombre String?
+  // Módulo: inventario | ventas | compras | configuracion | seguridad
+  modulo        String?
+  // Modelo afectado: Producto, Factura, OrdenCompra, Usuario, Rol, Empresa, Contacto, Stock…
+  entidad       String
+  entidadId     String?
+  // Acción: CREAR | EDITAR | ELIMINAR | EMITIR | ANULAR | CONFIRMAR | CANCELAR | RECIBIR | AJUSTE | TRANSFERENCIA | LOGIN | LOGOUT | REGISTRO
+  accion        String
+  resumen       String
+  // { antes, despues, diff } — snapshot completo del registro y los campos que cambiaron.
+  datos         Json?
+  ip            String?
+
+  @@index([empresaId, fecha])
+  @@index([fecha])
+  @@index([modulo])
+  @@index([entidad, entidadId])
+  @@index([usuarioId])
 }

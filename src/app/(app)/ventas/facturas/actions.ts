@@ -3,11 +3,13 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { requirePermiso } from "@/lib/auth";
+import { getTenant } from "@/lib/auth";
+import type { TenantDb } from "@/lib/tenant-db";
+import type { SessionPayload } from "@/lib/session";
 import { moverStock } from "@/lib/stock";
 import { parseLineas } from "@/lib/lineas";
 import { calcularTotales, formatNumeroFactura } from "@/lib/iva";
+import { auditar } from "@/lib/auditoria";
 import { hoyISO } from "@/lib/utils";
 import { ErrorNegocio, formObj, mensajeError, zodMsg, zOptStr, type ActionState } from "@/lib/action";
 
@@ -23,12 +25,12 @@ const cabecera = z.object({
 export async function guardarFactura(_: ActionState, fd: FormData): Promise<ActionState> {
   let id: number;
   try {
-    const s = await requirePermiso("ventas");
+    const { s, db } = await getTenant("ventas");
     const p = cabecera.safeParse(formObj(fd));
     if (!p.success) return { error: zodMsg(p.error) };
     const lineas = parseLineas(fd.get("lineas"));
 
-    const productos = await prisma.producto.findMany({ where: { id: { in: lineas.map((l) => l.productoId) } } });
+    const productos = await db.producto.findMany({ where: { id: { in: lineas.map((l) => l.productoId) } } });
     const porId = new Map(productos.map((x) => [x.id, x]));
 
     const detalle = lineas.map((l) => {
@@ -46,7 +48,17 @@ export async function guardarFactura(_: ActionState, fd: FormData): Promise<Acti
     const totales = calcularTotales(detalle);
     const { id: facturaId, ...cab } = p.data;
 
-    id = await prisma.$transaction(async (tx) => {
+    // Cliente y depósito deben ser de esta empresa (los ids vienen del formulario).
+    const [okCliente, okDeposito] = await Promise.all([
+      db.contacto.findUnique({ where: { id: cab.clienteId }, select: { id: true } }),
+      db.deposito.findUnique({ where: { id: cab.depositoId }, select: { id: true } }),
+    ]);
+    if (!okCliente) throw new ErrorNegocio("Cliente inválido");
+    if (!okDeposito) throw new ErrorNegocio("Depósito inválido");
+
+    const antes = facturaId ? await db.factura.findUnique({ where: { id: facturaId }, include: { lineas: true } }) : null;
+
+    id = await db.$transaction(async (tx) => {
       if (facturaId) {
         const actual = await tx.factura.findUniqueOrThrow({ where: { id: facturaId } });
         if (actual.estado !== "BORRADOR") throw new ErrorNegocio("Solo se pueden editar facturas en borrador");
@@ -54,13 +66,24 @@ export async function guardarFactura(_: ActionState, fd: FormData): Promise<Acti
         await tx.factura.update({ where: { id: facturaId }, data: { ...cab, ...totales, lineas: { create: detalle } } });
         return facturaId;
       }
-      const f = await tx.factura.create({ data: { ...cab, ...totales, usuarioId: s.userId, lineas: { create: detalle } } });
+      const f = await tx.factura.create({ data: { ...cab, ...totales, empresaId: s.empresaId, usuarioId: s.userId, lineas: { create: detalle } } });
       return f.id;
+    });
+
+    const despues = await db.factura.findUnique({ where: { id }, include: { lineas: true } });
+    await auditar({
+      modulo: "ventas",
+      entidad: "Factura",
+      entidadId: id,
+      accion: facturaId ? "EDITAR" : "CREAR",
+      resumen: `${facturaId ? "Editó" : "Creó"} el borrador de factura #${id}`,
+      antes,
+      despues,
     });
 
     if (fd.get("accion") === "emitir") {
       try {
-        await emitirInterno(id, s.userId);
+        await emitirInterno(db, s, id);
       } catch (e) {
         // El borrador ya quedó guardado: mostrar el error en su detalle para no duplicarlo
         revalidatePath("/ventas/facturas");
@@ -75,14 +98,15 @@ export async function guardarFactura(_: ActionState, fd: FormData): Promise<Acti
   redirect(`/ventas/facturas/${id}`);
 }
 
-async function emitirInterno(id: number, usuarioId: number) {
-  await prisma.$transaction(async (tx) => {
+async function emitirInterno(db: TenantDb, s: SessionPayload, id: number) {
+  const antes = await db.factura.findUnique({ where: { id }, include: { lineas: true } });
+  await db.$transaction(async (tx) => {
     const f = await tx.factura.findUniqueOrThrow({ where: { id }, include: { lineas: true } });
     if (f.estado !== "BORRADOR") throw new ErrorNegocio("La factura ya fue emitida o anulada");
 
     // Reservar número: el UPDATE bloquea la fila de Empresa hasta el fin de la transacción,
     // así dos emisiones simultáneas nunca obtienen el mismo número.
-    const emp = await tx.empresa.update({ where: { id: 1 }, data: { siguienteNumero: { increment: 1 } } });
+    const emp = await tx.empresa.update({ where: { id: s.empresaId }, data: { siguienteNumero: { increment: 1 } } });
     const hoy = new Date();
     const dia = hoyISO(); // fecha de hoy en Paraguay, comparada contra columnas @db.Date
     if (dia < emp.timbradoInicio.toISOString().slice(0, 10) || dia > emp.timbradoFin.toISOString().slice(0, 10)) {
@@ -92,23 +116,35 @@ async function emitirInterno(id: number, usuarioId: number) {
 
     for (const l of f.lineas) {
       await moverStock(tx, {
+        empresaId: s.empresaId,
         productoId: l.productoId,
         depositoId: f.depositoId,
         cantidad: -Number(l.cantidad),
         origen: "VENTA",
         referencia: `Factura ${numero}`,
-        usuarioId,
+        usuarioId: s.userId,
       });
     }
 
     await tx.factura.update({ where: { id }, data: { estado: "EMITIDA", numero, timbrado: emp.timbrado, fecha: hoy } });
   });
+
+  const despues = await db.factura.findUnique({ where: { id }, include: { lineas: true } });
+  await auditar({
+    modulo: "ventas",
+    entidad: "Factura",
+    entidadId: id,
+    accion: "EMITIR",
+    resumen: `Emitió la factura ${despues?.numero ?? `#${id}`}`,
+    antes,
+    despues,
+  });
 }
 
 export async function emitirFactura(id: number, _: ActionState): Promise<ActionState> {
   try {
-    const s = await requirePermiso("ventas");
-    await emitirInterno(id, s.userId);
+    const { s, db } = await getTenant("ventas");
+    await emitirInterno(db, s, id);
   } catch (e) {
     return { error: mensajeError(e) };
   }
@@ -119,12 +155,14 @@ export async function emitirFactura(id: number, _: ActionState): Promise<ActionS
 
 export async function anularFactura(id: number, _: ActionState): Promise<ActionState> {
   try {
-    const s = await requirePermiso("ventas");
-    await prisma.$transaction(async (tx) => {
+    const { s, db } = await getTenant("ventas");
+    const antes = await db.factura.findUnique({ where: { id }, include: { lineas: true } });
+    await db.$transaction(async (tx) => {
       const f = await tx.factura.findUniqueOrThrow({ where: { id }, include: { lineas: true } });
       if (f.estado !== "EMITIDA") throw new ErrorNegocio("Solo se pueden anular facturas emitidas");
       for (const l of f.lineas) {
         await moverStock(tx, {
+          empresaId: s.empresaId,
           productoId: l.productoId,
           depositoId: f.depositoId,
           cantidad: Number(l.cantidad),
@@ -135,6 +173,8 @@ export async function anularFactura(id: number, _: ActionState): Promise<ActionS
       }
       await tx.factura.update({ where: { id }, data: { estado: "ANULADA", anuladaAt: new Date() } });
     });
+    const despues = await db.factura.findUnique({ where: { id }, include: { lineas: true } });
+    await auditar({ modulo: "ventas", entidad: "Factura", entidadId: id, accion: "ANULAR", resumen: `Anuló la factura ${antes?.numero ?? `#${id}`}`, antes, despues });
   } catch (e) {
     return { error: mensajeError(e) };
   }
@@ -145,9 +185,11 @@ export async function anularFactura(id: number, _: ActionState): Promise<ActionS
 
 export async function eliminarBorrador(id: number, _: ActionState): Promise<ActionState> {
   try {
-    await requirePermiso("ventas");
-    const r = await prisma.factura.deleteMany({ where: { id, estado: "BORRADOR" } });
+    const { db } = await getTenant("ventas");
+    const antes = await db.factura.findUnique({ where: { id }, include: { lineas: true } });
+    const r = await db.factura.deleteMany({ where: { id, estado: "BORRADOR" } });
     if (r.count === 0) throw new ErrorNegocio("Solo se pueden eliminar borradores");
+    await auditar({ modulo: "ventas", entidad: "Factura", entidadId: id, accion: "ELIMINAR", resumen: `Eliminó el borrador de factura #${id}`, antes });
   } catch (e) {
     return { error: mensajeError(e) };
   }

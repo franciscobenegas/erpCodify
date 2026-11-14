@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { MODULOS } from "@/lib/permisos";
 import { PageHeader } from "@/components/page-header";
 import { ActionForm, SubmitButton } from "@/components/form";
@@ -34,9 +34,10 @@ function RolForm({ rol }: { rol?: { id: number; nombre: string; permisos: string
 }
 
 export default async function UsuariosPage() {
+  const { db } = await getTenant("configuracion");
   const [usuarios, roles] = await Promise.all([
-    prisma.usuario.findMany({ include: { rol: true }, orderBy: { nombre: "asc" } }),
-    prisma.rol.findMany({ orderBy: { nombre: "asc" }, include: { _count: { select: { usuarios: true } } } }),
+    db.usuario.findMany({ include: { rol: true }, orderBy: { nombre: "asc" } }),
+    db.rol.findMany({ orderBy: { nombre: "asc" }, include: { _count: { select: { usuarios: true } } } }),
   ]);
 
   return (

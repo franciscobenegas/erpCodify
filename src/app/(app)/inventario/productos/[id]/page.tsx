@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getTenant } from "@/lib/auth";
 import { formatQty, toNum } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
@@ -12,9 +12,10 @@ import { guardarProducto } from "../../actions";
 export default async function ProductoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const nuevo = id === "nuevo";
+  const { db } = await getTenant();
   const [p, categorias] = await Promise.all([
-    nuevo ? null : prisma.producto.findUnique({ where: { id: Number(id) }, include: { stocks: { include: { deposito: true } } } }),
-    prisma.categoria.findMany({ orderBy: { nombre: "asc" } }),
+    nuevo ? null : db.producto.findUnique({ where: { id: Number(id) }, include: { stocks: { include: { deposito: true } } } }),
+    db.categoria.findMany({ orderBy: { nombre: "asc" } }),
   ]);
   if (!nuevo && !p) notFound();
 
