@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { crearEmpresa, regenerarCodigo, toggleEmpresaActiva } from "./actions";
+import { crearEmpresa, toggleEmpresaActiva } from "./actions";
 
 export const metadata = { title: "Empresas" };
 export const dynamic = "force-dynamic";
@@ -32,40 +32,25 @@ export default async function PlataformaEmpresasPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Empresa</TableHead>
-                <TableHead>Código de invitación</TableHead>
                 <TableHead className="text-right">Usuarios</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {empresas.length === 0 && <EmptyRow cols={5}>Todavía no hay empresas.</EmptyRow>}
+              {empresas.length === 0 && <EmptyRow cols={4}>Todavía no hay empresas.</EmptyRow>}
               {empresas.map((e) => (
                 <TableRow key={e.id} className={!e.activo ? "opacity-60" : undefined}>
                   <TableCell>
                     <div className="font-medium">{e.razonSocial}</div>
-                    <div className="text-xs text-muted-foreground">RUC {e.ruc} · desde {formatFecha(e.createdAt)}</div>
-                  </TableCell>
-                  <TableCell>
-                    {e.codigoInvitacion ? (
-                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">{e.codigoInvitacion}</code>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">— sin código —</span>
-                    )}
+                    <div className="text-xs text-muted-foreground">RUC {e.ruc || "—"} · desde {formatFecha(e.createdAt)}</div>
                   </TableCell>
                   <TableCell className="text-right">{e._count.usuarios}</TableCell>
                   <TableCell>
                     {e.activo ? <Badge variant="success">Activa</Badge> : <Badge variant="secondary">Inactiva</Badge>}
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <AccionBoton
-                        action={regenerarCodigo.bind(null, e.id)}
-                        variant="outline"
-                        confirm={`¿Generar un código nuevo para "${e.razonSocial}"? El anterior dejará de funcionar.`}
-                      >
-                        {e.codigoInvitacion ? "Regenerar código" : "Generar código"}
-                      </AccionBoton>
+                    <div className="flex justify-end">
                       {e.id !== s.empresaId && (
                         <AccionBoton
                           action={toggleEmpresaActiva.bind(null, e.id)}

@@ -20,8 +20,6 @@ model Empresa {
   telefono         String?
   email            String?
   activo           Boolean   @default(true)
-  // Código que un administrador comparte para que nuevos usuarios soliciten unirse.
-  codigoInvitacion String?   @unique
   // Datos de timbrado (SET)
   timbrado         String
   timbradoInicio   DateTime  @db.Date

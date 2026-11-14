@@ -9,8 +9,8 @@ export const metadata = { title: "Crear cuenta" };
 export default function RegistroPage() {
   return (
     <AuthShell
-      title="Creá tu cuenta"
-      subtitle="Registrate para solicitar acceso al sistema."
+      title="Creá tu empresa"
+      subtitle="Registrá tu empresa y empezá a gestionar tu negocio."
       footer={
         <>
           ¿Ya tenés cuenta?{" "}
@@ -21,10 +21,10 @@ export default function RegistroPage() {
       }
     >
       <ActionForm action={registrarse} className="grid gap-4">
-        <Field label="Código de invitación" htmlFor="codigo" hint="Te lo comparte el administrador de tu empresa">
-          <Input id="codigo" name="codigo" required autoFocus />
+        <Field label="Nombre de la empresa" htmlFor="razonSocial" hint="Podés completar el RUC y el timbrado después, en Configuración">
+          <Input id="razonSocial" name="razonSocial" required autoFocus />
         </Field>
-        <Field label="Nombre completo" htmlFor="nombre">
+        <Field label="Tu nombre" htmlFor="nombre">
           <Input id="nombre" name="nombre" autoComplete="name" required />
         </Field>
         <Field label="Email" htmlFor="email">
@@ -36,9 +36,9 @@ export default function RegistroPage() {
         <Field label="Confirmar contraseña" htmlFor="confirmar">
           <Input id="confirmar" name="confirmar" type="password" autoComplete="new-password" required />
         </Field>
-        <SubmitButton className="mt-2 w-full">Crear cuenta</SubmitButton>
+        <SubmitButton className="mt-2 w-full">Crear empresa y entrar</SubmitButton>
         <p className="text-center text-xs text-muted-foreground">
-          Tu cuenta quedará pendiente de aprobación por un administrador.
+          Vas a ser el administrador de tu empresa, con acceso completo.
         </p>
       </ActionForm>
     </AuthShell>

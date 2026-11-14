@@ -2,29 +2,11 @@
 
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { randomInt } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/lib/auth";
 import { auditar } from "@/lib/auditoria";
 import { ErrorNegocio, formObj, mensajeError, zodMsg, type ActionState } from "@/lib/action";
-
-// Sin caracteres ambiguos (I, O, 0, 1) para que el código sea fácil de dictar.
-const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-function codigoAleatorio(): string {
-  let out = "";
-  for (let i = 0; i < 8; i++) out += ALFABETO[randomInt(ALFABETO.length)];
-  return out;
-}
-
-async function codigoUnico(): Promise<string> {
-  for (let i = 0; i < 10; i++) {
-    const c = codigoAleatorio();
-    if (!(await prisma.empresa.findUnique({ where: { codigoInvitacion: c } }))) return c;
-  }
-  throw new ErrorNegocio("No se pudo generar un código único. Probá de nuevo.");
-}
 
 const empresaSchema = z.object({
   razonSocial: z.string().trim().min(2, "requerido"),
@@ -45,7 +27,6 @@ export async function crearEmpresa(_: ActionState, fd: FormData): Promise<Action
     if (await prisma.usuario.findUnique({ where: { email: adminEmail } }))
       throw new ErrorNegocio("Ya existe un usuario con ese email.");
 
-    const codigo = await codigoUnico();
     const passwordHash = await bcrypt.hash(adminPassword, 10); // fuera de la transacción (es lento)
     const hoy = new Date();
 
@@ -55,7 +36,6 @@ export async function crearEmpresa(_: ActionState, fd: FormData): Promise<Action
           razonSocial,
           ruc,
           activo: true,
-          codigoInvitacion: codigo,
           // Timbrado placeholder: el admin de la empresa lo completa en Configuración → Empresa.
           timbrado: "00000000",
           timbradoInicio: new Date(Date.UTC(hoy.getUTCFullYear(), 0, 1)),
@@ -82,21 +62,7 @@ export async function crearEmpresa(_: ActionState, fd: FormData): Promise<Action
     });
 
     revalidatePath("/plataforma/empresas");
-    return { ok: `Empresa "${razonSocial}" creada. Código de invitación: ${codigo} — compartilo con su administrador (${adminEmail}).` };
-  } catch (e) {
-    return { error: mensajeError(e) };
-  }
-}
-
-/** Genera un nuevo código de invitación para una empresa (invalida el anterior). */
-export async function regenerarCodigo(empresaId: number, _: ActionState): Promise<ActionState> {
-  try {
-    await requireSuperAdmin();
-    const codigo = await codigoUnico();
-    const emp = await prisma.empresa.update({ where: { id: empresaId }, data: { codigoInvitacion: codigo } });
-    await auditar({ modulo: "seguridad", entidad: "Empresa", entidadId: empresaId, accion: "EDITAR", resumen: `Regeneró el código de invitación de ${emp.razonSocial}`, empresaId });
-    revalidatePath("/plataforma/empresas");
-    return { ok: `Nuevo código para ${emp.razonSocial}: ${codigo}` };
+    return { ok: `Empresa "${razonSocial}" creada con su administrador ${adminEmail}.` };
   } catch (e) {
     return { error: mensajeError(e) };
   }
