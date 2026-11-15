@@ -99,6 +99,8 @@ model Producto {
   codigo      String
   nombre      String
   descripcion String?
+  // URL pública de la imagen en Vercel Blob (null si no tiene).
+  imagenUrl   String?
   unidad      String     @default("UN")
   categoriaId Int?
   categoria   Categoria? @relation(fields: [categoriaId], references: [id])

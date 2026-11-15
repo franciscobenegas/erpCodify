@@ -4,6 +4,7 @@ import { formatFecha } from "@/lib/utils";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { AccionBoton } from "@/components/accion-boton";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,7 +85,10 @@ export default async function PlataformaEmpresasPage() {
               <Field label="Nombre"><Input name="adminNombre" required /></Field>
               <Field label="Email"><Input name="adminEmail" type="email" autoComplete="off" required /></Field>
               <Field label="Contraseña" hint="Mínimo 6 caracteres"><Input name="adminPassword" type="password" autoComplete="new-password" required /></Field>
-              <div><SubmitButton>Crear empresa</SubmitButton></div>
+              <div className="flex gap-2">
+                <SubmitButton>Crear empresa</SubmitButton>
+                <Button type="reset" variant="ghost">Cancelar</Button>
+              </div>
             </ActionForm>
           </CardContent>
         </Card>

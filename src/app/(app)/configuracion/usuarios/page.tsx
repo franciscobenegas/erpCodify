@@ -26,8 +26,9 @@ function RolForm({ rol }: { rol?: { id: number; nombre: string; permisos: string
           </label>
         ))}
       </div>
-      <div>
+      <div className="flex gap-2">
         <SubmitButton size="sm" variant={rol ? "outline" : "default"}>{rol ? "Guardar" : "Crear rol"}</SubmitButton>
+        <Button type="reset" size="sm" variant="ghost">Cancelar</Button>
       </div>
     </ActionForm>
   );

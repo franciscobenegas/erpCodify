@@ -1,6 +1,7 @@
 import { getTenant } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -38,7 +39,10 @@ export default async function DepositosPage() {
             <ActionForm action={crearDeposito} className="grid gap-3">
               <Field label="Nombre"><Input name="nombre" required /></Field>
               <Field label="Dirección"><Input name="direccion" /></Field>
-              <div><SubmitButton>Crear</SubmitButton></div>
+              <div className="flex gap-2">
+                <SubmitButton>Crear</SubmitButton>
+                <Button type="reset" variant="ghost">Cancelar</Button>
+              </div>
             </ActionForm>
           </CardContent>
         </Card>

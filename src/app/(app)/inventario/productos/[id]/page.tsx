@@ -7,6 +7,7 @@ import { ActionForm, Field, SubmitButton } from "@/components/form";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProductoImagen } from "./producto-imagen";
 import { guardarProducto } from "../../actions";
 
 export default async function ProductoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -32,6 +33,9 @@ export default async function ProductoPage({ params }: { params: Promise<{ id: s
                 <Field label="Nombre"><Input name="nombre" defaultValue={p?.nombre} required /></Field>
               </div>
               <Field label="Descripción"><Textarea name="descripcion" defaultValue={p?.descripcion ?? ""} /></Field>
+              <Field label="Imagen del producto" hint="JPG, PNG o WebP · máximo 5 MB">
+                <ProductoImagen actual={p?.imagenUrl} nombre={p?.nombre} />
+              </Field>
               <div className="grid gap-4 sm:grid-cols-3">
                 <Field label="Categoría">
                   <NativeSelect name="categoriaId" defaultValue={p?.categoriaId ?? ""}>

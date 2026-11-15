@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { getTenant } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { AccionBoton } from "@/components/accion-boton";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
+import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { guardarUsuario, eliminarUsuario } from "../actions";
@@ -54,7 +56,10 @@ export default async function UsuarioPage({ params }: { params: Promise<{ id: st
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="activo" defaultChecked={u?.activo ?? true} className="size-4" /> Usuario activo
             </label>
-            <div><SubmitButton>Guardar</SubmitButton></div>
+            <div className="flex gap-2">
+              <SubmitButton>Guardar</SubmitButton>
+              <Button variant="ghost" asChild><Link href="/configuracion/usuarios">Cancelar</Link></Button>
+            </div>
           </ActionForm>
         </CardContent>
       </Card>

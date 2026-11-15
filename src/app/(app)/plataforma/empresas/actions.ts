@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/lib/auth";
+import { sembrarEjemplos } from "@/lib/ejemplos";
 import { auditar } from "@/lib/auditoria";
 import { ErrorNegocio, formObj, mensajeError, zodMsg, type ActionState } from "@/lib/action";
 
@@ -48,8 +49,10 @@ export async function crearEmpresa(_: ActionState, fd: FormData): Promise<Action
       await tx.usuario.create({
         data: { empresaId: emp.id, nombre: adminNombre, email: adminEmail, passwordHash, activo: true, rolId: rol.id },
       });
+      // Datos de ejemplo para que la empresa arranque con algo cargado.
+      await sembrarEjemplos(tx, emp.id);
       return emp;
-    });
+    }, { timeout: 15000 });
 
     await auditar({
       modulo: "seguridad",

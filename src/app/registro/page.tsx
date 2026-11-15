@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AuthShell } from "@/components/auth-shell";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/password-input";
 import { registrarse } from "./actions";
 
 export const metadata = { title: "Crear cuenta" };
@@ -31,10 +32,10 @@ export default function RegistroPage() {
           <Input id="email" name="email" type="email" autoComplete="email" required />
         </Field>
         <Field label="Contraseña" htmlFor="password" hint="Mínimo 6 caracteres">
-          <Input id="password" name="password" type="password" autoComplete="new-password" required />
+          <PasswordInput id="password" name="password" autoComplete="new-password" required />
         </Field>
         <Field label="Confirmar contraseña" htmlFor="confirmar">
-          <Input id="confirmar" name="confirmar" type="password" autoComplete="new-password" required />
+          <PasswordInput id="confirmar" name="confirmar" autoComplete="new-password" required />
         </Field>
         <SubmitButton className="mt-2 w-full">Crear empresa y entrar</SubmitButton>
         <p className="text-center text-xs text-muted-foreground">

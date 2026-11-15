@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTenant } from "@/lib/auth";
+import type { TenantDb } from "@/lib/tenant-db";
 import { MODULOS } from "@/lib/permisos";
 import { auditar, sinSecretos } from "@/lib/auditoria";
 import { ErrorNegocio, formObj, mensajeError, zodMsg, type ActionState } from "@/lib/action";
@@ -18,6 +19,18 @@ const usuarioSchema = z.object({
   password: z.string().optional(),
 });
 
+// Un "administrador" es un usuario activo cuyo rol habilita el módulo de configuración
+// (puede gestionar usuarios y roles). La empresa siempre debe conservar al menos uno.
+const ADMIN_PERMISO = "configuracion";
+
+/** ¿Queda al menos un administrador activo en la empresa, además de `excluirId`? */
+async function hayOtroAdmin(db: TenantDb, excluirId: number): Promise<boolean> {
+  const n = await db.usuario.count({
+    where: { id: { not: excluirId }, activo: true, rol: { permisos: { has: ADMIN_PERMISO } } },
+  });
+  return n > 0;
+}
+
 export async function guardarUsuario(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const { s, db } = await getTenant("configuracion");
@@ -28,23 +41,32 @@ export async function guardarUsuario(_: ActionState, fd: FormData): Promise<Acti
     if (password && password.length < 6) throw new ErrorNegocio("La contraseña debe tener al menos 6 caracteres");
     if (id === s.userId && !data.activo) throw new ErrorNegocio("No podés desactivar tu propio usuario");
     // El rol asignado debe ser de esta empresa (el id viene del formulario).
-    if (!(await db.rol.findUnique({ where: { id: data.rolId }, select: { id: true } }))) {
-      throw new ErrorNegocio("Rol inválido");
-    }
+    const rolAsignado = await db.rol.findUnique({ where: { id: data.rolId }, select: { permisos: true } });
+    if (!rolAsignado) throw new ErrorNegocio("Rol inválido");
 
     if (id) {
-      const antes = await db.usuario.findUnique({ where: { id } });
+      const antes = await db.usuario.findUnique({ where: { id }, include: { rol: { select: { permisos: true } } } });
+      if (!antes) throw new ErrorNegocio("El usuario no existe.");
+
+      // La empresa siempre debe conservar al menos un administrador activo.
+      const eraAdmin = antes.activo && antes.rol.permisos.includes(ADMIN_PERMISO);
+      const seguiraAdmin = data.activo && rolAsignado.permisos.includes(ADMIN_PERMISO);
+      if (eraAdmin && !seguiraAdmin && !(await hayOtroAdmin(db, id))) {
+        throw new ErrorNegocio("No se puede: es el único administrador. Designá otro administrador (usuario activo con rol de configuración) antes de cambiarlo.");
+      }
+
       const despues = await db.usuario.update({
         where: { id },
         data: { ...data, ...(password ? { passwordHash: await bcrypt.hash(password, 10) } : {}) },
       });
+      const { rol: _rol, ...antesPlano } = antes;
       await auditar({
         modulo: "configuracion",
         entidad: "Usuario",
         entidadId: id,
         accion: "EDITAR",
         resumen: `Editó el usuario ${despues.nombre} (${despues.email})${password ? " · cambió la contraseña" : ""}`,
-        antes: sinSecretos(antes),
+        antes: sinSecretos(antesPlano),
         despues: sinSecretos(despues),
       });
     } else {
@@ -66,20 +88,24 @@ export async function eliminarUsuario(id: number, _: ActionState): Promise<Actio
 
     const antes = await db.usuario.findUnique({
       where: { id },
-      include: { _count: { select: { facturas: true, ordenes: true, movimientos: true } } },
+      include: { rol: { select: { permisos: true } }, _count: { select: { facturas: true, ordenes: true, movimientos: true } } },
     });
     if (!antes) throw new ErrorNegocio("El usuario no existe.");
+    // La empresa siempre debe conservar al menos un administrador activo.
+    if (antes.activo && antes.rol.permisos.includes(ADMIN_PERMISO) && !(await hayOtroAdmin(db, id)))
+      throw new ErrorNegocio("No se puede eliminar: es el único administrador. Designá otro administrador antes.");
     if (antes._count.facturas > 0 || antes._count.ordenes > 0 || antes._count.movimientos > 0)
       throw new ErrorNegocio("No se puede eliminar: tiene comprobantes o movimientos asociados. Desactivalo en su lugar.");
 
     await db.usuario.delete({ where: { id } });
+    const { rol: _rol, _count, ...antesPlano } = antes;
     await auditar({
       modulo: "configuracion",
       entidad: "Usuario",
       entidadId: id,
       accion: "ELIMINAR",
       resumen: `Eliminó el usuario ${antes.nombre} (${antes.email})`,
-      antes: sinSecretos(antes),
+      antes: sinSecretos(antesPlano),
     });
   } catch (e) {
     return { error: mensajeError(e) };

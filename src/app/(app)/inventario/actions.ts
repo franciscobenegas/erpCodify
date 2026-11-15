@@ -1,12 +1,36 @@
 "use server";
 
 import { z } from "zod";
+import { put, del } from "@vercel/blob";
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTenant } from "@/lib/auth";
 import { moverStock } from "@/lib/stock";
 import { auditar } from "@/lib/auditoria";
 import { ErrorNegocio, formObj, mensajeError, zNum, zodMsg, zOptStr, type ActionState } from "@/lib/action";
+
+const MAX_IMAGEN = 5 * 1024 * 1024; // 5 MB
+
+/** Sube la imagen de un producto a Vercel Blob y devuelve su URL pública. */
+async function subirImagen(file: File, empresaId: number): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new ErrorNegocio("El archivo debe ser una imagen.");
+  if (file.size > MAX_IMAGEN) throw new ErrorNegocio("La imagen no puede superar los 5 MB.");
+  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new ErrorNegocio("Falta configurar el almacenamiento de imágenes (BLOB_READ_WRITE_TOKEN).");
+  const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "img";
+  const blob = await put(`productos/${empresaId}/${randomUUID()}.${ext}`, file, { access: "public" });
+  return blob.url;
+}
+
+/** Borra una imagen de Blob sin interrumpir la operación si falla (best-effort). */
+async function borrarImagen(url: string | null | undefined) {
+  if (!url) return;
+  try {
+    await del(url);
+  } catch (e) {
+    console.error("[blob] no se pudo borrar la imagen:", e);
+  }
+}
 
 // ───────── Productos ─────────
 
@@ -34,12 +58,26 @@ export async function guardarProducto(_: ActionState, fd: FormData): Promise<Act
     if (data.categoriaId != null && !(await db.categoria.findUnique({ where: { id: data.categoriaId }, select: { id: true } }))) {
       throw new ErrorNegocio("Categoría inválida");
     }
+
+    const archivo = fd.get("imagen");
+    const nuevaImagen = archivo instanceof File && archivo.size > 0;
+    const quitarImagen = fd.get("quitarImagen") === "on";
+
     if (id) {
       const antes = await db.producto.findUnique({ where: { id } });
-      const despues = await db.producto.update({ where: { id }, data });
+      if (!antes) throw new ErrorNegocio("El producto no existe.");
+
+      let imagenUrl = antes.imagenUrl;
+      if (nuevaImagen) imagenUrl = await subirImagen(archivo, s.empresaId);
+      else if (quitarImagen) imagenUrl = null;
+
+      const despues = await db.producto.update({ where: { id }, data: { ...data, imagenUrl } });
+      // Si la imagen cambió o se quitó, borrar la anterior de Blob.
+      if (antes.imagenUrl && antes.imagenUrl !== imagenUrl) await borrarImagen(antes.imagenUrl);
       await auditar({ modulo: "inventario", entidad: "Producto", entidadId: id, accion: "EDITAR", resumen: `Editó el producto ${despues.codigo} · ${despues.nombre}`, antes, despues });
     } else {
-      const despues = await db.producto.create({ data: { ...data, empresaId: s.empresaId } });
+      const imagenUrl = nuevaImagen ? await subirImagen(archivo, s.empresaId) : null;
+      const despues = await db.producto.create({ data: { ...data, empresaId: s.empresaId, imagenUrl } });
       await auditar({ modulo: "inventario", entidad: "Producto", entidadId: despues.id, accion: "CREAR", resumen: `Creó el producto ${despues.codigo} · ${despues.nombre}`, despues });
     }
   } catch (e) {

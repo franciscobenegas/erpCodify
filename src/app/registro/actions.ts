@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SESSION_COOKIE, cookieOpts, firmarSesion } from "@/lib/session";
+import { sembrarEjemplos } from "@/lib/ejemplos";
 import { auditar, sinSecretos } from "@/lib/auditoria";
 import { ErrorNegocio, formObj, mensajeError, zodMsg, type ActionState } from "@/lib/action";
 
@@ -58,8 +59,10 @@ export async function registrarse(_: ActionState, fd: FormData): Promise<ActionS
       const usuario = await tx.usuario.create({
         data: { empresaId: empresa.id, nombre, email, passwordHash, activo: true, rolId: rol.id },
       });
+      // Datos de ejemplo para que la empresa arranque con algo cargado.
+      await sembrarEjemplos(tx, empresa.id);
       return { empresa, usuario, rol };
-    });
+    }, { timeout: 15000 });
 
     await auditar({
       modulo: "seguridad",

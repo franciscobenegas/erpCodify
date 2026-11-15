@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Plus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { getTenant } from "@/lib/auth";
@@ -61,7 +62,14 @@ export default async function ProductosPage({ searchParams }: { searchParams: Pr
                 <TableRow key={p.id} className={!p.activo ? "opacity-50" : undefined}>
                   <TableCell className="font-mono text-xs">{p.codigo}</TableCell>
                   <TableCell>
-                    <Link href={`/inventario/productos/${p.id}`} className="font-medium text-primary hover:underline">{p.nombre}</Link>
+                    <div className="flex items-center gap-2.5">
+                      {p.imagenUrl ? (
+                        <Image src={p.imagenUrl} alt="" width={32} height={32} className="size-8 shrink-0 rounded border object-cover" />
+                      ) : (
+                        <div className="size-8 shrink-0 rounded border bg-muted" aria-hidden />
+                      )}
+                      <Link href={`/inventario/productos/${p.id}`} className="font-medium text-primary hover:underline">{p.nombre}</Link>
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{p.categoria?.nombre ?? "—"}</TableCell>
                   <TableCell className="text-right">{p.tasaIva === 0 ? "Exenta" : `${p.tasaIva}%`}</TableCell>

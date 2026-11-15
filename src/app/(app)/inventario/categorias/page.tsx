@@ -1,6 +1,7 @@
 import { getTenant } from "@/lib/auth";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { ActionForm, SubmitButton } from "@/components/form";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,6 +33,7 @@ export default async function CategoriasPage() {
             <ActionForm action={crearCategoria} className="flex gap-2">
               <Input name="nombre" placeholder="Nombre" required />
               <SubmitButton>Crear</SubmitButton>
+              <Button type="reset" variant="ghost">Cancelar</Button>
             </ActionForm>
           </CardContent>
         </Card>

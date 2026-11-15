@@ -106,7 +106,10 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
                   <Field label="Cantidad"><Input name="cantidad" type="number" min={0} step="any" required /></Field>
                 </div>
                 <Field label="Motivo"><Input name="nota" placeholder="Conteo físico, rotura, vencimiento…" /></Field>
-                <div><SubmitButton>Registrar ajuste</SubmitButton></div>
+                <div className="flex gap-2">
+                  <SubmitButton>Registrar ajuste</SubmitButton>
+                  <Button type="reset" variant="ghost">Cancelar</Button>
+                </div>
               </ActionForm>
             </CardContent>
           </Card>
@@ -121,7 +124,10 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
                 </div>
                 <Field label="Cantidad"><Input name="cantidad" type="number" min={0} step="any" required /></Field>
                 <Field label="Nota"><Input name="nota" /></Field>
-                <div><SubmitButton>Transferir</SubmitButton></div>
+                <div className="flex gap-2">
+                  <SubmitButton>Transferir</SubmitButton>
+                  <Button type="reset" variant="ghost">Cancelar</Button>
+                </div>
               </ActionForm>
             </CardContent>
           </Card>
