@@ -26,7 +26,7 @@ export async function requirePermiso(modulo: Modulo): Promise<SessionPayload> {
 /** Valida que el usuario sea administrador de plataforma (gestión de empresas). */
 export async function requireSuperAdmin(): Promise<SessionPayload> {
   const s = await requireSession();
-  if (!s.esSuperAdmin) redirect("/");
+  if (!s.esSuperAdmin) redirect("/tablero");
   return s;
 }
 

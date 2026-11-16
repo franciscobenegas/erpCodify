@@ -16,7 +16,7 @@ type Item = { href: string; label: string; icon: React.ElementType };
 type Grupo = { titulo: string; modulo: Modulo | null; items: Item[] };
 
 const NAV: Grupo[] = [
-  { titulo: "", modulo: null, items: [{ href: "/", label: "Tablero", icon: LayoutDashboard }] },
+  { titulo: "", modulo: null, items: [{ href: "/tablero", label: "Tablero", icon: LayoutDashboard }] },
   {
     titulo: "Inventario",
     modulo: "inventario",
@@ -79,7 +79,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [abierto, setAbierto] = useState(false);
-  const activo = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/"));
+  const activo = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   const grupos = [
     ...NAV.filter((g) => !g.modulo || permisos.includes(g.modulo)),

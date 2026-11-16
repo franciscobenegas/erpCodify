@@ -12,7 +12,7 @@ import type { ActionState } from "@/lib/action";
 export async function login(_: ActionState, fd: FormData): Promise<ActionState> {
   const email = String(fd.get("email") ?? "").trim().toLowerCase();
   const password = String(fd.get("password") ?? "");
-  const next = String(fd.get("next") ?? "/");
+  const next = String(fd.get("next") ?? "/tablero");
 
   const user = await prisma.usuario.findUnique({ where: { email }, include: { rol: true, empresa: true } });
   if (!user || !user.activo || !(await bcrypt.compare(password, user.passwordHash))) {
@@ -35,7 +35,7 @@ export async function login(_: ActionState, fd: FormData): Promise<ActionState> 
   });
   (await cookies()).set(SESSION_COOKIE, token, cookieOpts);
   await auditar({ modulo: "seguridad", entidad: "Usuario", entidadId: user.id, accion: "LOGIN", resumen: `Inició sesión`, usuario: { id: user.id, nombre: user.nombre } });
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/tablero");
 }
 
 export async function logout() {

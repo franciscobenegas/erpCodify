@@ -91,5 +91,5 @@ export async function registrarse(_: ActionState, fd: FormData): Promise<ActionS
     return { error: mensajeError(e) };
   }
   // Fuera del try: el redirect lanza NEXT_REDIRECT y no debe tratarse como error.
-  redirect("/");
+  redirect("/tablero");
 }

@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       }
     >
       <ActionForm action={login} className="grid gap-4">
-        <input type="hidden" name="next" value={next ?? "/"} />
+        <input type="hidden" name="next" value={next ?? "/tablero"} />
         <Field label="Email" htmlFor="email">
           <Input id="email" name="email" type="email" autoComplete="email" required autoFocus />
         </Field>
