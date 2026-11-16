@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: { default: "ERP", template: "%s · ERP" },
@@ -13,11 +20,11 @@ const themeScript = `(function(){try{var t=localStorage.getItem("theme");var d=t
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" className={inter.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body suppressHydrationWarning style={{ fontFamily: "Inter, ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif" }}>{children}</body>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

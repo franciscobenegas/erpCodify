@@ -15,14 +15,14 @@ export const metadata: Metadata = {
     "ERP simple y completo para PYMEs: stock por depósito en tiempo real, facturación con timbrado, compras, finanzas (caja, cobranzas y pagos), multi-empresa y tablero en vivo.",
 };
 
-const funciones = [
-  { icon: Package, titulo: "Inventario y stock", texto: "Existencias por depósito en tiempo real, con movimientos, ajustes y transferencias." },
-  { icon: FileText, titulo: "Facturación", texto: "Emití facturas con timbrado, IVA incluido y numeración automática. PDF listo para imprimir." },
-  { icon: ShoppingCart, titulo: "Compras y proveedores", texto: "Órdenes de compra, recepción de mercadería e ingreso automático al stock." },
-  { icon: Wallet, titulo: "Finanzas", texto: "Caja y bancos, cobranzas y pagos: cada cobro y pago impacta en tu saldo al instante." },
-  { icon: Building2, titulo: "Multi-empresa", texto: "Gestioná varias empresas con datos totalmente aislados desde una sola cuenta." },
-  { icon: ShieldCheck, titulo: "Auditoría", texto: "Bitácora inmutable de cada operación: quién hizo qué y cuándo." },
-  { icon: LayoutDashboard, titulo: "Tablero en vivo", texto: "Ventas del mes, valor del inventario, compras por recibir y alertas de stock mínimo." },
+// Módulos secundarios del bento. Los dos destacados (Inventario y Finanzas) se
+// componen a mano más abajo con una vista previa real de su UI.
+const funcionesCompactas = [
+  { icon: FileText, titulo: "Facturación", texto: "Emití facturas con timbrado, IVA incluido y numeración automática. PDF listo para imprimir.", span: "lg:col-span-2" },
+  { icon: ShoppingCart, titulo: "Compras y proveedores", texto: "Órdenes de compra, recepción de mercadería e ingreso automático al stock.", span: "lg:col-span-2" },
+  { icon: LayoutDashboard, titulo: "Tablero en vivo", texto: "Ventas del mes, valor del inventario, compras por recibir y alertas de stock mínimo.", span: "lg:col-span-2" },
+  { icon: Building2, titulo: "Multi-empresa", texto: "Gestioná varias empresas con datos totalmente aislados desde una sola cuenta.", span: "lg:col-span-3" },
+  { icon: ShieldCheck, titulo: "Auditoría", texto: "Bitácora inmutable de cada operación: quién hizo qué y cuándo.", span: "lg:col-span-3" },
 ];
 
 const beneficios = [
@@ -107,17 +107,15 @@ export default async function LandingPage() {
         />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-24 lg:px-8">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-              <span className="size-1.5 rounded-full bg-success" /> ERP para PYMEs · hecho en Paraguay
-            </span>
-            <h1 className="mt-5 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-              Tu inventario, ventas y compras en <span className="text-primary">un solo lugar</span>
+            <h1 className="landing-rise text-[2.6rem] font-semibold leading-[1.04] tracking-[-0.03em] sm:text-5xl lg:text-[3.75rem]">
+              Tu inventario, ventas y compras en{" "}
+              <span className="text-primary">un solo lugar</span>
             </h1>
-            <p className="mt-5 max-w-lg text-lg text-muted-foreground">
+            <p className="landing-rise mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground" style={{ animationDelay: "80ms" }}>
               Un ERP simple y completo: controlá stock por depósito, facturá con timbrado, gestioná
               compras, cobranzas y pagos, y seguí tu caja y tus números en tiempo real.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="landing-rise mt-8 flex flex-wrap gap-3" style={{ animationDelay: "160ms" }}>
               <Button size="lg" asChild>
                 <Link href={s ? "/tablero" : "/registro"}>
                   {s ? "Ir al panel" : "Crear empresa gratis"} <ArrowRight className="size-4" />
@@ -129,11 +127,17 @@ export default async function LandingPage() {
                 </Button>
               )}
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">Sin tarjeta de crédito · listo en segundos</p>
+            <p className="landing-rise mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" style={{ animationDelay: "220ms" }}>
+              <Check className="size-3.5 text-success" /> Sin tarjeta de crédito
+              <span className="text-border">·</span> listo en segundos
+              <span className="text-border">·</span> hecho en Paraguay 🇵🇾
+            </p>
           </div>
 
           {/* Mockup del tablero */}
-          <HeroMockup />
+          <div className="landing-rise" style={{ animationDelay: "140ms" }}>
+            <HeroMockup />
+          </div>
         </div>
 
         {/* Strip de destacados */}
@@ -172,9 +176,65 @@ export default async function LandingPage() {
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Todo lo que tu negocio necesita</h2>
           <p className="mt-4 text-muted-foreground">Cinco módulos integrados que trabajan juntos, sin planillas ni sistemas separados.</p>
         </div>
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {funciones.map((f) => (
-            <div key={f.titulo} className="group rounded-xl border bg-card p-6 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          {/* Destacado: Inventario */}
+          <article className="group flex flex-col rounded-2xl border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-md sm:col-span-2 lg:col-span-3">
+            <div className="flex items-center gap-3">
+              <div className="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <Package className="size-5" />
+              </div>
+              <h3 className="text-lg font-semibold">Inventario y stock</h3>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Existencias por depósito en tiempo real, con movimientos, ajustes y transferencias.
+            </p>
+            <div className="mt-5 grid gap-2">
+              {[
+                ["Depósito Central", "128 u."],
+                ["Sucursal Centro", "42 u."],
+                ["Detergente 750ml", "bajo mín."],
+              ].map(([a, b], i) => (
+                <div key={a} className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-xs">
+                  <span className="font-medium">{a}</span>
+                  <span className={i === 2 ? "rounded bg-warning/15 px-1.5 py-0.5 font-medium text-foreground" : "text-muted-foreground"}>{b}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          {/* Destacado: Finanzas */}
+          <article className="group flex flex-col rounded-2xl border bg-card p-6 transition-all hover:border-primary/30 hover:shadow-md sm:col-span-2 lg:col-span-3">
+            <div className="flex items-center gap-3">
+              <div className="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <Wallet className="size-5" />
+              </div>
+              <h3 className="text-lg font-semibold">Finanzas</h3>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Caja y bancos, cobranzas y pagos: cada cobro y pago impacta en tu saldo al instante.
+            </p>
+            <div className="mt-5 rounded-lg border bg-background p-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-muted-foreground">Saldo de caja</span>
+                <span className="text-lg font-semibold tracking-tight">₲ 4.820.000</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-1.5 rounded-md bg-success/10 px-2 py-1.5 text-foreground">
+                  <TrendingUp className="size-3.5 text-success" /> Cobranzas +₲ 1.2M
+                </div>
+                <div className="flex items-center gap-1.5 rounded-md bg-muted px-2 py-1.5 text-muted-foreground">
+                  <Wallet className="size-3.5" /> Pagos −₲ 640K
+                </div>
+              </div>
+            </div>
+          </article>
+
+          {/* Módulos restantes */}
+          {funcionesCompactas.map((f) => (
+            <div
+              key={f.titulo}
+              className={`group rounded-2xl border bg-card p-6 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md sm:col-span-1 ${f.span}`}
+            >
               <div className="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                 <f.icon className="size-5" />
               </div>
@@ -334,36 +394,67 @@ export default async function LandingPage() {
 /** Mockup estilizado del tablero para el hero. */
 function HeroMockup() {
   const barras = [40, 65, 50, 80, 55, 90, 70, 95, 60, 85, 75, 100];
+  const kpis = [
+    { k: "Ventas del mes", v: "₲ 12.4M", d: "+12%", up: true },
+    { k: "Inventario", v: "₲ 8.1M", d: "+3%", up: true },
+    { k: "Por recibir", v: "₲ 3.2M", d: "8 fact.", up: true },
+  ];
   return (
     <div className="relative">
-      <div className="pointer-events-none absolute -inset-4 rounded-[1.75rem] bg-primary/10 blur-2xl" aria-hidden />
-      <div className="relative rounded-2xl border bg-card p-5 shadow-xl">
-      <div className="flex items-center gap-1.5 pb-4">
-        <span className="size-2.5 rounded-full bg-destructive/60" />
-        <span className="size-2.5 rounded-full bg-warning/70" />
-        <span className="size-2.5 rounded-full bg-success/70" />
-        <span className="ml-2 text-xs text-muted-foreground">Tablero · erpCodify</span>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          ["Ventas del mes", "₲ 12.4M"],
-          ["Inventario", "₲ 8.1M"],
-          ["Por recibir", "₲ 3.2M"],
-        ].map(([k, v]) => (
-          <div key={k} className="rounded-lg border bg-background p-3">
-            <div className="text-[10px] text-muted-foreground">{k}</div>
-            <div className="mt-1 text-sm font-semibold">{v}</div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 rounded-lg border bg-background p-3">
-        <div className="mb-2 text-[10px] text-muted-foreground">Ventas últimos 14 días</div>
-        <div className="flex h-24 items-end gap-1.5">
-          {barras.map((h, i) => (
-            <div key={i} className="flex-1 rounded-t-sm bg-primary/80" style={{ height: `${h}%` }} />
+      <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-primary/10 blur-3xl" aria-hidden />
+      <div className="relative rounded-2xl border bg-card p-5 shadow-2xl shadow-primary/5 ring-1 ring-black/[0.03]">
+        <div className="flex items-center gap-1.5 border-b pb-3">
+          <span className="size-2.5 rounded-full bg-destructive/60" />
+          <span className="size-2.5 rounded-full bg-warning/70" />
+          <span className="size-2.5 rounded-full bg-success/70" />
+          <span className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <LayoutDashboard className="size-3.5" /> Tablero · erpCodify
+          </span>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          {kpis.map(({ k, v, d, up }) => (
+            <div key={k} className="rounded-lg border bg-background p-3">
+              <div className="text-[10px] leading-tight text-muted-foreground">{k}</div>
+              <div className="mt-1.5 text-sm font-semibold tracking-tight">{v}</div>
+              <div className="mt-1 inline-flex items-center gap-0.5 text-[10px] font-medium text-success">
+                <TrendingUp className="size-3" /> {d}
+              </div>
+            </div>
           ))}
         </div>
+        <div className="mt-3 rounded-lg border bg-background p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-medium text-muted-foreground">Ventas últimos 14 días</div>
+            <div className="text-[10px] text-success">▲ 18% vs. semana previa</div>
+          </div>
+          <div className="mt-3 flex h-24 items-end gap-1.5 border-b border-border/60">
+            {barras.map((h, i) => (
+              <div
+                key={i}
+                className={`flex-1 rounded-t-sm ${i === barras.length - 1 ? "bg-primary" : "bg-primary/35"}`}
+                style={{ height: `${h}%` }}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
+          <div className="flex items-center gap-2 text-xs">
+            <AlertTriangle className="size-3.5 text-warning" />
+            <span className="font-medium">3 productos bajo stock mínimo</span>
+          </div>
+          <span className="text-[10px] font-medium text-primary">Ver</span>
+        </div>
       </div>
+
+      {/* Chip flotante: vida en el mockup, dato ilustrativo. */}
+      <div className="absolute -bottom-4 -left-4 hidden items-center gap-2.5 rounded-xl border bg-card px-3.5 py-2.5 shadow-xl sm:flex">
+        <span className="grid size-7 place-items-center rounded-full bg-success/15 text-success">
+          <Check className="size-4" />
+        </span>
+        <div className="leading-tight">
+          <div className="text-xs font-semibold">Cobro registrado</div>
+          <div className="text-[10px] text-muted-foreground">₲ 450.000 · caja actualizada</div>
+        </div>
       </div>
     </div>
   );
