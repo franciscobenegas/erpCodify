@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import {
   Boxes, Package, FileText, ShoppingCart, Wallet, Building2, LayoutDashboard, ShieldCheck,
-  Check, ArrowRight, TrendingUp, AlertTriangle,
+  Check, ArrowRight, TrendingUp, AlertTriangle, ChevronDown,
+  Store, Truck, Wrench, Cross, ShoppingBasket, Briefcase,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,24 @@ const pasos = [
   { n: "3", titulo: "Empezá a operar", texto: "Facturá, comprá, cobrá y pagá; seguí tu caja y tus números desde el tablero." },
 ];
 
+const sectores = [
+  { icon: Store, label: "Comercios minoristas" },
+  { icon: Truck, label: "Distribuidoras y mayoristas" },
+  { icon: Wrench, label: "Ferreterías" },
+  { icon: Cross, label: "Farmacias" },
+  { icon: ShoppingBasket, label: "Minimarkets" },
+  { icon: Briefcase, label: "Servicios" },
+];
+
+const faqs = [
+  { q: "¿Necesito instalar algo?", a: "No. erpCodify es 100 % web: entrás desde el navegador en la computadora, tablet o celular. Nada que instalar ni actualizar." },
+  { q: "¿Sirve para facturar en Paraguay?", a: "Sí. Emitís facturas con tu timbrado del SET, IVA 10 % / 5 % / exenta, numeración automática y PDF listo para imprimir." },
+  { q: "¿Puedo manejar más de una empresa?", a: "Sí. Desde una sola cuenta gestionás varias empresas, con los datos de cada una totalmente aislados." },
+  { q: "¿Cómo controlo el dinero?", a: "Con el módulo de Finanzas: caja y bancos, cobranzas y pagos. Cada cobro y pago impacta en tu saldo, y ves cuánto te deben y cuánto debés." },
+  { q: "¿Mis datos están seguros?", a: "Cada empresa está aislada del resto, cada usuario tiene roles y permisos por módulo, y hay una bitácora de auditoría de todas las operaciones." },
+  { q: "¿Tiene costo?", a: "Podés crear tu empresa y probar todos los módulos. Registrate y empezá a usarlo en segundos." },
+];
+
 export default async function LandingPage() {
   const s = await getSession();
 
@@ -55,6 +74,7 @@ export default async function LandingPage() {
             <a href="#funciones" className="transition-colors hover:text-foreground">Funciones</a>
             <a href="#beneficios" className="transition-colors hover:text-foreground">Beneficios</a>
             <a href="#como" className="transition-colors hover:text-foreground">Cómo empezar</a>
+            <a href="#faq" className="transition-colors hover:text-foreground">Preguntas</a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle variant="surface" />
@@ -72,6 +92,15 @@ export default async function LandingPage() {
 
       {/* ---------- Hero ---------- */}
       <section className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage: "radial-gradient(var(--primary) 1px, transparent 1px)",
+            backgroundSize: "26px 26px",
+            maskImage: "radial-gradient(ellipse 75% 55% at 50% 0%, black, transparent)",
+            WebkitMaskImage: "radial-gradient(ellipse 75% 55% at 50% 0%, black, transparent)",
+          }}
+        />
         <div
           className="pointer-events-none absolute -top-40 left-1/2 size-[42rem] -translate-x-1/2 rounded-full opacity-20 blur-3xl"
           style={{ background: "radial-gradient(circle, var(--primary), transparent 70%)" }}
@@ -125,6 +154,18 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* ---------- Sectores ---------- */}
+      <section className="mx-auto max-w-6xl px-4 pt-16 sm:px-6 lg:px-8">
+        <p className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ideal para tu rubro</p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
+          {sectores.map((x) => (
+            <span key={x.label} className="inline-flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm font-medium shadow-sm">
+              <x.icon className="size-4 text-primary" /> {x.label}
+            </span>
+          ))}
+        </div>
+      </section>
+
       {/* ---------- Funciones ---------- */}
       <section id="funciones" className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
@@ -133,8 +174,8 @@ export default async function LandingPage() {
         </div>
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {funciones.map((f) => (
-            <div key={f.titulo} className="rounded-xl border bg-card p-6 transition-shadow hover:shadow-md">
-              <div className="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary">
+            <div key={f.titulo} className="group rounded-xl border bg-card p-6 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+              <div className="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                 <f.icon className="size-5" />
               </div>
               <h3 className="mt-4 font-semibold">{f.titulo}</h3>
@@ -205,8 +246,29 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* ---------- FAQ ---------- */}
+      <section id="faq" className="border-y bg-muted/30">
+        <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Preguntas frecuentes</h2>
+            <p className="mt-4 text-muted-foreground">Lo que todos preguntan antes de empezar.</p>
+          </div>
+          <div className="mt-10 grid gap-3">
+            {faqs.map((f) => (
+              <details key={f.q} className="group rounded-xl border bg-card px-5 py-4 transition-colors hover:border-primary/30">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium [&::-webkit-details-marker]:hidden">
+                  {f.q}
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <p className="mt-3 text-sm text-muted-foreground">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ---------- CTA ---------- */}
-      <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="relative overflow-hidden rounded-2xl bg-sidebar px-6 py-14 text-center text-sidebar-foreground sm:px-12">
           <div
             className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full opacity-40 blur-3xl"
@@ -229,20 +291,40 @@ export default async function LandingPage() {
       </section>
 
       {/* ---------- Footer ---------- */}
-      <footer className="border-t">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2.5">
-            <div className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground">
-              <Boxes className="size-4" />
+      <footer className="border-t bg-muted/20">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="lg:col-span-2">
+              <div className="flex items-center gap-2.5">
+                <div className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
+                  <Boxes className="size-5" />
+                </div>
+                <span className="text-lg font-semibold">erpCodify</span>
+              </div>
+              <p className="mt-3 max-w-xs text-sm text-muted-foreground">
+                El ERP simple para gestionar inventario, ventas, compras y finanzas de tu PYME.
+              </p>
             </div>
-            <span className="font-medium text-foreground">erpCodify</span>
+            <div>
+              <div className="text-sm font-semibold">Producto</div>
+              <ul className="mt-3 grid gap-2 text-sm text-muted-foreground">
+                <li><a href="#funciones" className="hover:text-foreground">Funciones</a></li>
+                <li><a href="#beneficios" className="hover:text-foreground">Beneficios</a></li>
+                <li><a href="#faq" className="hover:text-foreground">Preguntas frecuentes</a></li>
+              </ul>
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Cuenta</div>
+              <ul className="mt-3 grid gap-2 text-sm text-muted-foreground">
+                <li><Link href="/login" className="hover:text-foreground">Ingresar</Link></li>
+                <li><Link href="/registro" className="hover:text-foreground">Crear empresa</Link></li>
+              </ul>
+            </div>
           </div>
-          <div className="flex items-center gap-6">
-            <a href="#funciones" className="hover:text-foreground">Funciones</a>
-            <Link href="/login" className="hover:text-foreground">Ingresar</Link>
-            <Link href="/registro" className="hover:text-foreground">Crear empresa</Link>
+          <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t pt-6 text-xs text-muted-foreground sm:flex-row">
+            <p>© {new Date().getFullYear()} erpCodify · Hecho en Paraguay 🇵🇾</p>
+            <p>Inventario · Ventas · Compras · Finanzas</p>
           </div>
-          <p>© {new Date().getFullYear()} erpCodify</p>
         </div>
       </footer>
     </div>
@@ -253,7 +335,9 @@ export default async function LandingPage() {
 function HeroMockup() {
   const barras = [40, 65, 50, 80, 55, 90, 70, 95, 60, 85, 75, 100];
   return (
-    <div className="relative rounded-2xl border bg-card p-5 shadow-xl">
+    <div className="relative">
+      <div className="pointer-events-none absolute -inset-4 rounded-[1.75rem] bg-primary/10 blur-2xl" aria-hidden />
+      <div className="relative rounded-2xl border bg-card p-5 shadow-xl">
       <div className="flex items-center gap-1.5 pb-4">
         <span className="size-2.5 rounded-full bg-destructive/60" />
         <span className="size-2.5 rounded-full bg-warning/70" />
@@ -279,6 +363,7 @@ function HeroMockup() {
             <div key={i} className="flex-1 rounded-t-sm bg-primary/80" style={{ height: `${h}%` }} />
           ))}
         </div>
+      </div>
       </div>
     </div>
   );
