@@ -44,7 +44,7 @@ export async function crearEmpresa(_: ActionState, fd: FormData): Promise<Action
         },
       });
       const rol = await tx.rol.create({
-        data: { empresaId: emp.id, nombre: "Administrador", permisos: ["inventario", "ventas", "compras", "configuracion"] },
+        data: { empresaId: emp.id, nombre: "Administrador", permisos: ["inventario", "ventas", "compras", "finanzas", "configuracion"] },
       });
       await tx.usuario.create({
         data: { empresaId: emp.id, nombre: adminNombre, email: adminEmail, passwordHash, activo: true, rolId: rol.id },

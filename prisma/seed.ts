@@ -25,7 +25,7 @@ async function main() {
   const admin = await prisma.rol.upsert({
     where: { empresaId_nombre: { empresaId, nombre: "Administrador" } },
     update: {},
-    create: { empresaId, nombre: "Administrador", permisos: ["inventario", "ventas", "compras", "configuracion"] },
+    create: { empresaId, nombre: "Administrador", permisos: ["inventario", "ventas", "compras", "finanzas", "configuracion"] },
   });
   await prisma.rol.upsert({
     where: { empresaId_nombre: { empresaId, nombre: "Vendedor" } },

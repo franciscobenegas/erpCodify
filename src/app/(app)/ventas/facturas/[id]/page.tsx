@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FileDown, Pencil } from "lucide-react";
 import { getTenant } from "@/lib/auth";
-import { formatFecha, formatGs, formatQty } from "@/lib/utils";
+import { formatFecha, formatGs, formatQty, toNum } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { EstadoBadge } from "@/components/estado-badge";
 import { AccionBoton } from "@/components/accion-boton";
@@ -22,9 +22,13 @@ export default async function FacturaPage({
   const { db } = await getTenant();
   const f = await db.factura.findUnique({
     where: { id: Number(id) },
-    include: { cliente: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } } },
+    include: { cliente: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } }, cobroAplicaciones: { select: { monto: true } } },
   });
   if (!f) notFound();
+
+  const cobrado = f.cobroAplicaciones.reduce((a, x) => a + toNum(x.monto), 0);
+  const saldo = toNum(f.total) - cobrado;
+  const mostrarSaldo = f.condicion === "CREDITO" && f.estado === "EMITIDA";
 
   return (
     <>
@@ -106,6 +110,12 @@ export default async function FacturaPage({
                 <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span>{formatGs(v)}</span></div>
               ))}
               <div className="mt-2 flex justify-between border-t pt-2 text-base font-semibold"><span>Total</span><span>{formatGs(f.total)}</span></div>
+              {mostrarSaldo && (
+                <>
+                  <div className="mt-2 flex justify-between"><span className="text-muted-foreground">Cobrado</span><span>{formatGs(cobrado)}</span></div>
+                  <div className="flex justify-between font-medium"><span>Saldo pendiente</span><span className={saldo > 0.5 ? "text-destructive" : "text-success"}>{formatGs(saldo)}</span></div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

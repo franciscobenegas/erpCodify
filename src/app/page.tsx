@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import {
-  Boxes, Package, FileText, ShoppingCart, Building2, LayoutDashboard, ShieldCheck,
+  Boxes, Package, FileText, ShoppingCart, Wallet, Building2, LayoutDashboard, ShieldCheck,
   Check, ArrowRight, TrendingUp, AlertTriangle,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
@@ -11,13 +11,14 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export const metadata: Metadata = {
   title: { absolute: "erpCodify — ERP de inventario, ventas y compras" },
   description:
-    "ERP simple y completo para PYMEs: stock por depósito en tiempo real, facturación con timbrado, compras y proveedores, multi-empresa y tablero en vivo.",
+    "ERP simple y completo para PYMEs: stock por depósito en tiempo real, facturación con timbrado, compras, finanzas (caja, cobranzas y pagos), multi-empresa y tablero en vivo.",
 };
 
 const funciones = [
   { icon: Package, titulo: "Inventario y stock", texto: "Existencias por depósito en tiempo real, con movimientos, ajustes y transferencias." },
   { icon: FileText, titulo: "Facturación", texto: "Emití facturas con timbrado, IVA incluido y numeración automática. PDF listo para imprimir." },
   { icon: ShoppingCart, titulo: "Compras y proveedores", texto: "Órdenes de compra, recepción de mercadería e ingreso automático al stock." },
+  { icon: Wallet, titulo: "Finanzas", texto: "Caja y bancos, cobranzas y pagos: cada cobro y pago impacta en tu saldo al instante." },
   { icon: Building2, titulo: "Multi-empresa", texto: "Gestioná varias empresas con datos totalmente aislados desde una sola cuenta." },
   { icon: ShieldCheck, titulo: "Auditoría", texto: "Bitácora inmutable de cada operación: quién hizo qué y cuándo." },
   { icon: LayoutDashboard, titulo: "Tablero en vivo", texto: "Ventas del mes, valor del inventario, compras por recibir y alertas de stock mínimo." },
@@ -33,7 +34,7 @@ const beneficios = [
 const pasos = [
   { n: "1", titulo: "Creá tu empresa", texto: "Registrate en segundos y quedás como administrador, con datos de ejemplo cargados." },
   { n: "2", titulo: "Cargá tu catálogo", texto: "Sumá productos, depósitos, clientes y proveedores (o editá los de ejemplo)." },
-  { n: "3", titulo: "Empezá a operar", texto: "Facturá, registrá compras y seguí todo desde el tablero en tiempo real." },
+  { n: "3", titulo: "Empezá a operar", texto: "Facturá, comprá, cobrá y pagá; seguí tu caja y tus números desde el tablero." },
 ];
 
 export default async function LandingPage() {
@@ -84,8 +85,8 @@ export default async function LandingPage() {
               Tu inventario, ventas y compras en <span className="text-primary">un solo lugar</span>
             </h1>
             <p className="mt-5 max-w-lg text-lg text-muted-foreground">
-              Un ERP simple y completo: controlá stock por depósito, facturá con timbrado, administrá
-              compras y proveedores, y seguí todo desde un tablero en tiempo real.
+              Un ERP simple y completo: controlá stock por depósito, facturá con timbrado, gestioná
+              compras, cobranzas y pagos, y seguí tu caja y tus números en tiempo real.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" asChild>
@@ -110,10 +111,10 @@ export default async function LandingPage() {
         <div className="border-y bg-muted/30">
           <div className="mx-auto grid max-w-6xl grid-cols-2 gap-px px-4 sm:px-6 md:grid-cols-4 lg:px-8">
             {[
-              ["4 módulos", "integrados"],
+              ["5 módulos", "integrados"],
               ["Timbrado SET", "e IVA Paraguay"],
               ["Multi-empresa", "datos aislados"],
-              ["Tiempo real", "stock y ventas"],
+              ["Tiempo real", "stock, ventas y caja"],
             ].map(([t, sub]) => (
               <div key={t} className="py-6 text-center">
                 <div className="text-base font-semibold">{t}</div>
@@ -128,7 +129,7 @@ export default async function LandingPage() {
       <section id="funciones" className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Todo lo que tu negocio necesita</h2>
-          <p className="mt-4 text-muted-foreground">Cuatro módulos integrados que trabajan juntos, sin planillas ni sistemas separados.</p>
+          <p className="mt-4 text-muted-foreground">Cinco módulos integrados que trabajan juntos, sin planillas ni sistemas separados.</p>
         </div>
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {funciones.map((f) => (

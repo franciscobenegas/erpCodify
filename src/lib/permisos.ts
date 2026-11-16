@@ -2,6 +2,7 @@ export const MODULOS = [
   { key: "inventario", label: "Inventario" },
   { key: "ventas", label: "Ventas" },
   { key: "compras", label: "Compras" },
+  { key: "finanzas", label: "Finanzas" },
   { key: "configuracion", label: "Configuración" },
 ] as const;
 
@@ -12,6 +13,7 @@ export const RUTAS_MODULO: [string, Modulo][] = [
   ["/inventario", "inventario"],
   ["/ventas", "ventas"],
   ["/compras", "compras"],
+  ["/finanzas", "finanzas"],
   ["/configuracion", "configuracion"],
 ];
 

@@ -27,6 +27,21 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     db.factura.findMany({ where: { estado: "EMITIDA", fecha: { gte: hace14 } }, select: { fecha: true, total: true } }),
   ]);
 
+  // Finanzas (solo si el rol tiene el módulo): saldo de caja, por cobrar y por pagar.
+  const verFinanzas = s.permisos.includes("finanzas");
+  let saldoCaja = 0, porCobrar = 0, porPagar = 0, nCuentas = 0;
+  if (verFinanzas) {
+    const [cuentas, facturasCredito, ordenesRecibidas] = await Promise.all([
+      db.cuentaFinanciera.findMany({ where: { activo: true }, select: { saldo: true } }),
+      db.factura.findMany({ where: { condicion: "CREDITO", estado: "EMITIDA" }, select: { total: true, cobroAplicaciones: { select: { monto: true } } } }),
+      db.ordenCompra.findMany({ where: { estado: "RECIBIDA" }, select: { total: true, pagoAplicaciones: { select: { monto: true } } } }),
+    ]);
+    nCuentas = cuentas.length;
+    saldoCaja = cuentas.reduce((a, c) => a + toNum(c.saldo), 0);
+    porCobrar = facturasCredito.reduce((a, f) => a + Math.max(0, toNum(f.total) - f.cobroAplicaciones.reduce((b, x) => b + toNum(x.monto), 0)), 0);
+    porPagar = ordenesRecibidas.reduce((a, o) => a + Math.max(0, toNum(o.total) - o.pagoAplicaciones.reduce((b, x) => b + toNum(x.monto), 0)), 0);
+  }
+
   const conStock = productos.map((p) => ({ p, total: p.stocks.reduce((a, x) => a + toNum(x.cantidad), 0) }));
   const valorInventario = conStock.reduce((a, x) => a + x.total * toNum(x.p.costo), 0);
   const bajoMinimo = conStock.filter((x) => x.total <= toNum(x.p.stockMinimo)).sort((a, b) => a.total - b.total);
@@ -69,6 +84,34 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </Card>
         ))}
       </div>
+
+      {verFinanzas && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-1"><CardDescription>Saldo en caja y bancos</CardDescription></CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-semibold tracking-tight ${saldoCaja < 0 ? "text-destructive" : ""}`}>{formatGs(saldoCaja)}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                <Link href="/finanzas/caja" className="hover:underline">{nCuentas} cuenta(s) →</Link>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1"><CardDescription>Por cobrar</CardDescription></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-semibold tracking-tight">{formatGs(porCobrar)}</div>
+              <div className="mt-1 text-xs text-muted-foreground"><Link href="/finanzas/cobranzas" className="hover:underline">Ver cobranzas →</Link></div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1"><CardDescription>Por pagar</CardDescription></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-semibold tracking-tight">{formatGs(porPagar)}</div>
+              <div className="mt-1 text-xs text-muted-foreground"><Link href="/finanzas/pagos" className="hover:underline">Ver pagos →</Link></div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
         <Card>

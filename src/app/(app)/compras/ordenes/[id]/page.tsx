@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { getTenant } from "@/lib/auth";
-import { formatFecha, formatGs, formatQty } from "@/lib/utils";
+import { formatFecha, formatGs, formatQty, toNum } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { EstadoBadge } from "@/components/estado-badge";
 import { AccionBoton } from "@/components/accion-boton";
@@ -18,9 +18,12 @@ export default async function OrdenPage({ params }: { params: Promise<{ id: stri
   const { db } = await getTenant();
   const o = await db.ordenCompra.findUnique({
     where: { id: Number(id) },
-    include: { proveedor: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } } },
+    include: { proveedor: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } }, pagoAplicaciones: { select: { monto: true } } },
   });
   if (!o) notFound();
+
+  const pagado = o.pagoAplicaciones.reduce((a, x) => a + toNum(x.monto), 0);
+  const saldoPagar = toNum(o.total) - pagado;
 
   return (
     <>
@@ -76,6 +79,12 @@ export default async function OrdenPage({ params }: { params: Promise<{ id: stri
               <div className="mt-2 text-muted-foreground">Recibe en: {o.deposito.nombre}</div>
               {o.facturaProveedor && <div className="text-muted-foreground">Factura proveedor: {o.facturaProveedor}</div>}
               {o.recibidaAt && <div className="text-muted-foreground">Recibida el {formatFecha(o.recibidaAt)}</div>}
+              {o.estado === "RECIBIDA" && (
+                <div className="mt-2 grid gap-1 border-t pt-2">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Pagado</span><span>{formatGs(pagado)}</span></div>
+                  <div className="flex justify-between font-medium"><span>Saldo a pagar</span><span className={saldoPagar > 0.5 ? "text-destructive" : "text-success"}>{formatGs(saldoPagar)}</span></div>
+                </div>
+              )}
               {o.observacion && <div className="mt-2">{o.observacion}</div>}
             </CardContent>
           </Card>

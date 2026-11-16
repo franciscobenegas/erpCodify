@@ -18,6 +18,10 @@ export const MODELOS_TENANT = new Set<string>([
   "Factura",
   "OrdenCompra",
   "Auditoria",
+  "CuentaFinanciera",
+  "MovimientoCaja",
+  "Cobro",
+  "Pago",
 ]);
 
 type Obj = Record<string, unknown>;

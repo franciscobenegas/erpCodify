@@ -41,6 +41,10 @@ model Empresa {
   facturas    Factura[]
   ordenes     OrdenCompra[]
   auditorias  Auditoria[]
+  cuentas         CuentaFinanciera[]
+  movimientosCaja MovimientoCaja[]
+  cobros          Cobro[]
+  pagos           Pago[]
 }
 
 // ───────────── Seguridad ─────────────
@@ -76,6 +80,9 @@ model Usuario {
   facturas    Factura[]
   ordenes     OrdenCompra[]
   movimientos MovimientoStock[]
+  movimientosCaja MovimientoCaja[]
+  cobros      Cobro[]
+  pagos       Pago[]
 
   @@index([empresaId])
 }
@@ -196,6 +203,8 @@ model Contacto {
 
   facturas Factura[]
   ordenes  OrdenCompra[]
+  cobros   Cobro[]
+  pagos    Pago[]
 
   @@index([empresaId])
 }
@@ -240,6 +249,7 @@ model Factura {
   deposito Deposito       @relation(fields: [depositoId], references: [id])
   usuario  Usuario?       @relation(fields: [usuarioId], references: [id])
   lineas   FacturaLinea[]
+  cobroAplicaciones CobroAplicacion[]
 
   @@unique([empresaId, numero])
   @@index([empresaId])
@@ -286,6 +296,7 @@ model OrdenCompra {
   deposito  Deposito           @relation(fields: [depositoId], references: [id])
   usuario   Usuario?           @relation(fields: [usuarioId], references: [id])
   lineas    OrdenCompraLinea[]
+  pagoAplicaciones PagoAplicacion[]
 
   @@index([empresaId])
 }
@@ -299,6 +310,138 @@ model OrdenCompraLinea {
   subtotal    Decimal     @db.Decimal(18, 2)
   orden       OrdenCompra @relation(fields: [ordenId], references: [id], onDelete: Cascade)
   producto    Producto    @relation(fields: [productoId], references: [id])
+}
+
+// ───────────── Finanzas (caja y tesorería) ─────────────
+
+enum TipoCuenta {
+  CAJA
+  BANCO
+}
+
+model CuentaFinanciera {
+  id           Int        @id @default(autoincrement())
+  empresaId    Int
+  empresa      Empresa    @relation(fields: [empresaId], references: [id])
+  nombre       String
+  tipo         TipoCuenta @default(CAJA)
+  saldoInicial Decimal    @default(0) @db.Decimal(18, 2)
+  // Saldo actual, actualizado transaccionalmente en cada movimiento (como Stock).
+  saldo        Decimal    @default(0) @db.Decimal(18, 2)
+  activo       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+
+  movimientos MovimientoCaja[]
+  cobros      Cobro[]
+  pagos       Pago[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId])
+}
+
+enum TipoMovimientoCaja {
+  INGRESO
+  EGRESO
+}
+
+enum OrigenMovimientoCaja {
+  COBRO
+  PAGO
+  GASTO
+  INGRESO
+  TRANSFERENCIA
+  AJUSTE
+}
+
+model MovimientoCaja {
+  id         Int                  @id @default(autoincrement())
+  empresaId  Int
+  empresa    Empresa              @relation(fields: [empresaId], references: [id])
+  cuentaId   Int
+  cuenta     CuentaFinanciera     @relation(fields: [cuentaId], references: [id])
+  fecha      DateTime             @default(now())
+  tipo       TipoMovimientoCaja
+  // Siempre positivo; el signo lo da `tipo`.
+  monto      Decimal              @db.Decimal(18, 2)
+  concepto   String
+  origen     OrigenMovimientoCaja
+  // Referencia libre (ej. "Cobro #12", "Factura 001-001-0000007").
+  referencia String?
+  usuarioId  Int?
+  usuario    Usuario?             @relation(fields: [usuarioId], references: [id])
+
+  @@index([empresaId, fecha])
+  @@index([cuentaId, fecha])
+}
+
+// Cobranzas (cuentas por cobrar). Un cobro de un cliente se aplica a una o varias
+// facturas a crédito (FIFO) y genera un ingreso de caja.
+model Cobro {
+  id        Int              @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa          @relation(fields: [empresaId], references: [id])
+  clienteId Int
+  cliente   Contacto         @relation(fields: [clienteId], references: [id])
+  fecha     DateTime         @default(now())
+  monto     Decimal          @db.Decimal(18, 2)
+  cuentaId  Int
+  cuenta    CuentaFinanciera @relation(fields: [cuentaId], references: [id])
+  medio     String?
+  nota      String?
+  usuarioId Int?
+  usuario   Usuario?         @relation(fields: [usuarioId], references: [id])
+  createdAt DateTime         @default(now())
+
+  aplicaciones CobroAplicacion[]
+
+  @@index([empresaId, fecha])
+  @@index([clienteId])
+}
+
+model CobroAplicacion {
+  id        Int     @id @default(autoincrement())
+  cobroId   Int
+  cobro     Cobro   @relation(fields: [cobroId], references: [id], onDelete: Cascade)
+  facturaId Int
+  factura   Factura @relation(fields: [facturaId], references: [id])
+  monto     Decimal @db.Decimal(18, 2)
+
+  @@index([facturaId])
+}
+
+// Pagos (cuentas por pagar). Un pago a un proveedor se aplica a una o varias
+// órdenes de compra recibidas (FIFO) y genera un egreso de caja.
+model Pago {
+  id          Int              @id @default(autoincrement())
+  empresaId   Int
+  empresa     Empresa          @relation(fields: [empresaId], references: [id])
+  proveedorId Int
+  proveedor   Contacto         @relation(fields: [proveedorId], references: [id])
+  fecha       DateTime         @default(now())
+  monto       Decimal          @db.Decimal(18, 2)
+  cuentaId    Int
+  cuenta      CuentaFinanciera @relation(fields: [cuentaId], references: [id])
+  medio       String?
+  nota        String?
+  usuarioId   Int?
+  usuario     Usuario?         @relation(fields: [usuarioId], references: [id])
+  createdAt   DateTime         @default(now())
+
+  aplicaciones PagoAplicacion[]
+
+  @@index([empresaId, fecha])
+  @@index([proveedorId])
+}
+
+model PagoAplicacion {
+  id      Int         @id @default(autoincrement())
+  pagoId  Int
+  pago    Pago        @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  ordenId Int
+  orden   OrdenCompra @relation(fields: [ordenId], references: [id])
+  monto   Decimal     @db.Decimal(18, 2)
+
+  @@index([ordenId])
 }
 
 // ───────────── Auditoría ─────────────

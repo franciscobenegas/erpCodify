@@ -6,7 +6,7 @@ import { useState } from "react";
 import {
   Boxes, LayoutDashboard, Package, Tags, Warehouse, ArrowLeftRight, Layers,
   Users, FileText, Truck, ShoppingCart, Building2, Building, ShieldCheck, ScrollText, LogOut, Menu, X,
-  PanelLeftClose, PanelLeftOpen,
+  Wallet, HandCoins, Banknote, PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Modulo } from "@/lib/permisos";
@@ -42,6 +42,15 @@ const NAV: Grupo[] = [
     items: [
       { href: "/compras/ordenes", label: "Órdenes de compra", icon: ShoppingCart },
       { href: "/compras/proveedores", label: "Proveedores", icon: Truck },
+    ],
+  },
+  {
+    titulo: "Finanzas",
+    modulo: "finanzas",
+    items: [
+      { href: "/finanzas/caja", label: "Caja y bancos", icon: Wallet },
+      { href: "/finanzas/cobranzas", label: "Cobranzas", icon: HandCoins },
+      { href: "/finanzas/pagos", label: "Pagos", icon: Banknote },
     ],
   },
   {

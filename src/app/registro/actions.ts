@@ -54,7 +54,7 @@ export async function registrarse(_: ActionState, fd: FormData): Promise<ActionS
         },
       });
       const rol = await tx.rol.create({
-        data: { empresaId: empresa.id, nombre: "Administrador", permisos: ["inventario", "ventas", "compras", "configuracion"] },
+        data: { empresaId: empresa.id, nombre: "Administrador", permisos: ["inventario", "ventas", "compras", "finanzas", "configuracion"] },
       });
       const usuario = await tx.usuario.create({
         data: { empresaId: empresa.id, nombre, email, passwordHash, activo: true, rolId: rol.id },
