@@ -11,6 +11,7 @@ const lineasSchema = z
       productoId: z.number().int().positive(),
       cantidad: z.number().positive(),
       precio: z.number().min(0),
+      descuento: z.number().min(0).optional().default(0),
     }),
   )
   .min(1, "Agregá al menos una línea");

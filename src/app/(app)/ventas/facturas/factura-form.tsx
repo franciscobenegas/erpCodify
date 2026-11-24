@@ -3,29 +3,35 @@ import { getTenant } from "@/lib/auth";
 import { productosOpcion } from "@/lib/lineas";
 import { toNum } from "@/lib/utils";
 import { ActionForm, Field, SubmitButton } from "@/components/form";
-import { LineasEditor } from "@/components/lineas-editor";
 import { ClienteCombo } from "@/components/cliente-combo";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { guardarFactura } from "./actions";
+import { Card, CardContent } from "@/components/ui/card";
+import { TIPOS_COMPROBANTE } from "@/lib/comprobante";
+import { VentaDetalle } from "./venta-detalle";
+import { guardarFactura, importarItemsFactura } from "./actions";
 
 type FacturaEditable = {
   id: number;
   clienteId: number;
   depositoId: number;
+  tipoComprobante: string;
   condicion: string;
   observacion: string | null;
-  lineas: { productoId: number; cantidad: unknown; precioUnitario: unknown }[];
+  lineas: { productoId: number; cantidad: unknown; precioUnitario: unknown; descuento: unknown }[];
+  pagos: { formaPagoId: number; monto: unknown }[];
 };
 
 export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
   const { db } = await getTenant();
-  const [clientes, depositos, productos] = await Promise.all([
+  const [clientes, depositos, productos, formasPago] = await Promise.all([
     db.contacto.findMany({ where: { esCliente: true, activo: true }, orderBy: { nombre: "asc" } }),
     db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
     productosOpcion("venta"),
+    db.formaPago.findMany({ where: { activo: true }, orderBy: { nombre: "asc" }, include: { cuenta: { select: { id: true, nombre: true } } } }),
   ]);
+
+  const formas = formasPago.map((f) => ({ id: f.id, nombre: f.nombre, cuentaId: f.cuentaId, cuentaNombre: f.cuenta?.nombre ?? null }));
 
   return (
     <ActionForm action={guardarFactura} className="grid gap-6">
@@ -42,15 +48,14 @@ export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
               }))}
             />
           </Field>
+          <Field label="Tipo de comprobante">
+            <NativeSelect name="tipoComprobante" defaultValue={factura?.tipoComprobante ?? "FACTURA"}>
+              {TIPOS_COMPROBANTE.map((t) => <option key={t.tipo} value={t.tipo}>{t.label}</option>)}
+            </NativeSelect>
+          </Field>
           <Field label="Depósito de salida">
             <NativeSelect name="depositoId" defaultValue={factura?.depositoId ?? depositos[0]?.id} required>
               {depositos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-            </NativeSelect>
-          </Field>
-          <Field label="Condición">
-            <NativeSelect name="condicion" defaultValue={factura?.condicion ?? "CONTADO"}>
-              <option value="CONTADO">Contado</option>
-              <option value="CREDITO">Crédito</option>
             </NativeSelect>
           </Field>
           <Field label="Observación" className="sm:col-span-2 lg:col-span-4">
@@ -59,16 +64,14 @@ export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Detalle</CardTitle></CardHeader>
-        <CardContent>
-          <LineasEditor
-            modo="venta"
-            productos={productos}
-            iniciales={factura?.lineas.map((l) => ({ productoId: l.productoId, cantidad: toNum(l.cantidad as number), precio: toNum(l.precioUnitario as number) }))}
-          />
-        </CardContent>
-      </Card>
+      <VentaDetalle
+        productos={productos}
+        formas={formas}
+        importAction={importarItemsFactura}
+        condicionInicial={(factura?.condicion as "CONTADO" | "CREDITO") ?? "CONTADO"}
+        lineasIniciales={factura?.lineas.map((l) => ({ productoId: l.productoId, cantidad: toNum(l.cantidad as number), precio: toNum(l.precioUnitario as number), descuento: toNum(l.descuento as number) }))}
+        pagosIniciales={factura?.pagos.map((p) => ({ formaPagoId: p.formaPagoId, monto: toNum(p.monto as number) }))}
+      />
 
       <div className="flex flex-wrap gap-2">
         <SubmitButton name="accion" value="emitir">Guardar y emitir</SubmitButton>

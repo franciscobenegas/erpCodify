@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FileDown, Pencil } from "lucide-react";
 import { getTenant } from "@/lib/auth";
+import { nombreComprobante } from "@/lib/comprobante";
 import { formatFecha, formatGs, formatQty, toNum } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { EstadoBadge } from "@/components/estado-badge";
@@ -22,10 +23,11 @@ export default async function FacturaPage({
   const { db } = await getTenant();
   const f = await db.factura.findUnique({
     where: { id: Number(id) },
-    include: { cliente: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } }, cobroAplicaciones: { select: { monto: true } } },
+    include: { cliente: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } }, pagos: { include: { formaPago: true, cuenta: true } }, cobroAplicaciones: { select: { monto: true } } },
   });
   if (!f) notFound();
 
+  const hayDescuento = f.lineas.some((l) => toNum(l.descuento) > 0);
   const cobrado = f.cobroAplicaciones.reduce((a, x) => a + toNum(x.monto), 0);
   const saldo = toNum(f.total) - cobrado;
   const mostrarSaldo = f.condicion === "CREDITO" && f.estado === "EMITIDA";
@@ -33,7 +35,7 @@ export default async function FacturaPage({
   return (
     <>
       <PageHeader
-        title={f.numero ? `Factura ${f.numero}` : `Borrador #${f.id}`}
+        title={f.numero ? `${nombreComprobante(f.tipoComprobante)} ${f.numero}` : `Borrador #${f.id}`}
         description={<span className="flex items-center gap-2"><EstadoBadge estado={f.estado} /> {formatFecha(f.fecha)} · {f.condicion === "CONTADO" ? "Contado" : "Crédito"}</span>}
         actions={
           <>
@@ -70,7 +72,9 @@ export default async function FacturaPage({
             <TableHeader>
               <TableRow>
                 <TableHead>Producto</TableHead><TableHead className="text-right">Cant.</TableHead>
-                <TableHead className="text-right">Precio</TableHead><TableHead className="text-right">IVA</TableHead>
+                <TableHead className="text-right">Precio</TableHead>
+                {hayDescuento && <TableHead className="text-right">Desc.</TableHead>}
+                <TableHead className="text-right">IVA</TableHead>
                 <TableHead className="text-right">Subtotal</TableHead>
               </TableRow>
             </TableHeader>
@@ -80,6 +84,7 @@ export default async function FacturaPage({
                   <TableCell><div className="font-medium">{l.descripcion}</div><div className="font-mono text-xs text-muted-foreground">{l.producto.codigo}</div></TableCell>
                   <TableCell className="text-right">{formatQty(l.cantidad)}</TableCell>
                   <TableCell className="text-right">{formatGs(l.precioUnitario)}</TableCell>
+                  {hayDescuento && <TableCell className="text-right text-muted-foreground">{toNum(l.descuento) > 0 ? `−${formatGs(l.descuento)}` : "—"}</TableCell>}
                   <TableCell className="text-right">{l.tasaIva === 0 ? "Ex." : `${l.tasaIva}%`}</TableCell>
                   <TableCell className="text-right font-medium">{formatGs(l.subtotal)}</TableCell>
                 </TableRow>
@@ -118,6 +123,19 @@ export default async function FacturaPage({
               )}
             </CardContent>
           </Card>
+          {f.pagos.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Formas de pago</CardTitle></CardHeader>
+              <CardContent className="grid gap-1 text-sm">
+                {f.pagos.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between">
+                    <span>{p.formaPago.nombre} <span className="text-xs text-muted-foreground">→ {p.cuenta.nombre}</span></span>
+                    <span className="font-medium">{formatGs(p.monto)}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </>

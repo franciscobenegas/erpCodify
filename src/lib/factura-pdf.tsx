@@ -2,6 +2,7 @@ import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { Contacto, Empresa, Factura, FacturaLinea } from "@prisma/client";
 import { formatFecha, formatFechaPura, formatQty, toNum } from "./utils";
 import { numeroALetras } from "./numero-letras";
+import { nombreComprobante } from "./comprobante";
 
 const gs = (v: unknown) => new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(toNum(v as number));
 
@@ -19,12 +20,13 @@ const s = StyleSheet.create({
 });
 
 const cols = [
-  { w: "9%", key: "cant", label: "Cant." },
-  { w: "35%", key: "desc", label: "Descripción" },
-  { w: "14%", key: "pu", label: "Precio unit." },
-  { w: "14%", key: "ex", label: "Exentas" },
-  { w: "14%", key: "g5", label: "5%" },
-  { w: "14%", key: "g10", label: "10%" },
+  { w: "8%", key: "cant", label: "Cant." },
+  { w: "31%", key: "desc", label: "Descripción" },
+  { w: "13%", key: "pu", label: "Precio unit." },
+  { w: "12%", key: "dto", label: "Desc." },
+  { w: "12%", key: "ex", label: "Exentas" },
+  { w: "12%", key: "g5", label: "5%" },
+  { w: "12%", key: "g10", label: "10%" },
 ];
 
 export function FacturaPDF({
@@ -51,7 +53,7 @@ export function FacturaPDF({
             <Text>Timbrado N° <Text style={s.bold}>{f.timbrado}</Text></Text>
             <Text style={s.muted}>Vigencia: {formatFechaPura(e.timbradoInicio)} al {formatFechaPura(e.timbradoFin)}</Text>
             <Text>RUC: <Text style={s.bold}>{e.ruc}</Text></Text>
-            <Text style={[s.bold, { fontSize: 12, marginTop: 4 }]}>FACTURA</Text>
+            <Text style={[s.bold, { fontSize: 12, marginTop: 4, textAlign: "center" }]}>{nombreComprobante(f.tipoComprobante).toUpperCase()}</Text>
             <Text style={[s.bold, { fontSize: 11 }]}>N° {f.numero}</Text>
           </View>
         </View>
@@ -79,6 +81,7 @@ export function FacturaPDF({
           {f.lineas.map((l) => {
             const sub = gs(l.subtotal);
             const vals = [formatQty(l.cantidad), l.descripcion, gs(l.precioUnitario),
+              toNum(l.descuento) > 0 ? gs(l.descuento) : "",
               l.tasaIva === 0 ? sub : "", l.tasaIva === 5 ? sub : "", l.tasaIva === 10 ? sub : ""];
             return (
               <View key={l.id} style={s.row} wrap={false}>
@@ -89,10 +92,10 @@ export function FacturaPDF({
             );
           })}
           <View style={s.row}>
-            <Text style={[s.td, s.bold, { width: "58%" }]}>Subtotales</Text>
-            <Text style={[s.td, s.right, { width: "14%" }]}>{gs(f.exenta)}</Text>
-            <Text style={[s.td, s.right, { width: "14%" }]}>{gs(f.gravada5)}</Text>
-            <Text style={[s.td, s.right, { width: "14%" }]}>{gs(f.gravada10)}</Text>
+            <Text style={[s.td, s.bold, { width: "64%" }]}>Subtotales</Text>
+            <Text style={[s.td, s.right, { width: "12%" }]}>{gs(f.exenta)}</Text>
+            <Text style={[s.td, s.right, { width: "12%" }]}>{gs(f.gravada5)}</Text>
+            <Text style={[s.td, s.right, { width: "12%" }]}>{gs(f.gravada10)}</Text>
           </View>
           <View style={[s.row, { padding: 4 }]}>
             <Text style={[s.bold, { flex: 1, fontSize: 10 }]}>TOTAL A PAGAR: Gs. {gs(f.total)}</Text>

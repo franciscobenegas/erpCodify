@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import type { EstadoFactura, Prisma } from "@prisma/client";
 import { getTenant } from "@/lib/auth";
+import { nombreComprobante } from "@/lib/comprobante";
 import { formatFecha, formatGs } from "@/lib/utils";
 import { PageHeader, EmptyRow } from "@/components/page-header";
 import { SearchBar } from "@/components/search-bar";
@@ -53,6 +54,7 @@ export default async function FacturasPage({ searchParams }: { searchParams: Pro
                   <Link href={`/ventas/facturas/${f.id}`} className="font-mono text-xs font-medium text-primary hover:underline">
                     {f.numero ?? `Borrador #${f.id}`}
                   </Link>
+                  {f.tipoComprobante !== "FACTURA" && <div className="text-xs text-muted-foreground">{nombreComprobante(f.tipoComprobante)}</div>}
                 </TableCell>
                 <TableCell>{formatFecha(f.fecha)}</TableCell>
                 <TableCell className="font-medium">{f.cliente.nombre}</TableCell>

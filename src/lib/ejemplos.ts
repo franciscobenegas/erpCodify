@@ -76,4 +76,23 @@ export async function sembrarEjemplos(tx: Prisma.TransactionClient, empresaId: n
       { empresaId, nombre: "Distribuidora Guaraní S.A.", ruc: "80098765-4", telefono: "021 555 444", esProveedor: true },
     ],
   });
+
+  // Timbrado inicial para FACTURA, copiado del placeholder de la empresa. El admin
+  // lo completa (y agrega otros tipos) en Configuración → Timbrados.
+  const emp = await tx.empresa.findUniqueOrThrow({
+    where: { id: empresaId },
+    select: { timbrado: true, timbradoInicio: true, timbradoFin: true, establecimiento: true, puntoExpedicion: true, siguienteNumero: true },
+  });
+  await tx.timbradoComprobante.create({
+    data: {
+      empresaId,
+      tipo: "FACTURA",
+      timbrado: emp.timbrado,
+      timbradoInicio: emp.timbradoInicio,
+      timbradoFin: emp.timbradoFin,
+      establecimiento: emp.establecimiento,
+      puntoExpedicion: emp.puntoExpedicion,
+      siguienteNumero: emp.siguienteNumero,
+    },
+  });
 }

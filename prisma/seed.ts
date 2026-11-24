@@ -22,6 +22,22 @@ async function main() {
   });
   const empresaId = empresa.id;
 
+  // Timbrado inicial para FACTURA (cada tipo de comprobante lleva su propia numeración).
+  await prisma.timbradoComprobante.upsert({
+    where: { empresaId_tipo: { empresaId, tipo: "FACTURA" } },
+    update: {},
+    create: {
+      empresaId,
+      tipo: "FACTURA",
+      timbrado: empresa.timbrado,
+      timbradoInicio: empresa.timbradoInicio,
+      timbradoFin: empresa.timbradoFin,
+      establecimiento: empresa.establecimiento,
+      puntoExpedicion: empresa.puntoExpedicion,
+      siguienteNumero: empresa.siguienteNumero,
+    },
+  });
+
   const admin = await prisma.rol.upsert({
     where: { empresaId_nombre: { empresaId, nombre: "Administrador" } },
     update: {},

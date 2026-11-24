@@ -53,6 +53,7 @@ model Empresa {
   formasPago      FormaPago[]
   cuentasGasto    CuentaGasto[]
   centrosCosto    CentroCosto[]
+  timbrados       TimbradoComprobante[]
 }
 
 // ───────────── Seguridad ─────────────
@@ -315,10 +316,40 @@ enum CondicionVenta {
   CREDITO
 }
 
+enum TipoComprobante {
+  FACTURA
+  BOLETA
+  PEQUENO_CONTRIBUYENTE
+  AUTOFACTURA
+}
+
+// Timbrado y numeración independientes por tipo de comprobante. Cada tipo lleva
+// su propio rango/vigencia (exigencia de la SET). La emisión bloquea esta fila
+// para reservar el número de forma concurrente-segura.
+model TimbradoComprobante {
+  id              Int             @id @default(autoincrement())
+  empresaId       Int
+  empresa         Empresa         @relation(fields: [empresaId], references: [id])
+  tipo            TipoComprobante
+  timbrado        String
+  timbradoInicio  DateTime        @db.Date
+  timbradoFin     DateTime        @db.Date
+  establecimiento String          @default("001")
+  puntoExpedicion String          @default("001")
+  siguienteNumero Int             @default(1)
+  activo          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([empresaId, tipo])
+  @@index([empresaId])
+}
+
 model Factura {
   id          Int            @id @default(autoincrement())
   empresaId   Int
   empresa     Empresa        @relation(fields: [empresaId], references: [id])
+  tipoComprobante TipoComprobante @default(FACTURA)
   // 001-001-0000001; null mientras es borrador
   numero      String?
   timbrado    String?
@@ -342,10 +373,26 @@ model Factura {
   deposito Deposito       @relation(fields: [depositoId], references: [id])
   usuario  Usuario?       @relation(fields: [usuarioId], references: [id])
   lineas   FacturaLinea[]
+  pagos    FacturaPago[]
   cobroAplicaciones CobroAplicacion[]
 
   @@unique([empresaId, numero])
   @@index([empresaId])
+}
+
+// Formas de pago de una venta al contado (pago dividido). La suma de los pagos
+// debe igualar el total de la factura; cada pago ingresa a su cuenta al emitir.
+model FacturaPago {
+  id          Int              @id @default(autoincrement())
+  facturaId   Int
+  factura     Factura          @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+  formaPagoId Int
+  formaPago   FormaPago        @relation(fields: [formaPagoId], references: [id])
+  cuentaId    Int
+  cuenta      CuentaFinanciera @relation(fields: [cuentaId], references: [id])
+  monto       Decimal          @db.Decimal(18, 2)
+
+  @@index([facturaId])
 }
 
 model FacturaLinea {
@@ -356,6 +403,8 @@ model FacturaLinea {
   cantidad       Decimal  @db.Decimal(14, 3)
   precioUnitario Decimal  @db.Decimal(18, 2)
   tasaIva        Int
+  // Descuento de la línea (monto en Gs, IVA incluido). subtotal = cantidad*precioUnitario - descuento
+  descuento      Decimal  @default(0) @db.Decimal(18, 2)
   subtotal       Decimal  @db.Decimal(18, 2)
   factura        Factura  @relation(fields: [facturaId], references: [id], onDelete: Cascade)
   producto       Producto @relation(fields: [productoId], references: [id])
@@ -424,9 +473,11 @@ model CuentaFinanciera {
   activo       Boolean    @default(true)
   createdAt    DateTime   @default(now())
 
-  movimientos MovimientoCaja[]
-  cobros      Cobro[]
-  pagos       Pago[]
+  movimientos  MovimientoCaja[]
+  cobros       Cobro[]
+  pagos        Pago[]
+  formasPago   FormaPago[]
+  facturaPagos FacturaPago[]
 
   @@unique([empresaId, nombre])
   @@index([empresaId])
@@ -479,6 +530,11 @@ model FormaPago {
   empresa   Empresa @relation(fields: [empresaId], references: [id])
   nombre    String
   activo    Boolean @default(true)
+  // Cuenta destino: a dónde ingresa el dinero cobrado con este medio en una venta.
+  cuentaId  Int?
+  cuenta    CuentaFinanciera? @relation(fields: [cuentaId], references: [id])
+
+  facturaPagos FacturaPago[]
 
   @@unique([empresaId, nombre])
 }
