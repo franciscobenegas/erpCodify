@@ -54,3 +54,14 @@ export async function moverStock(
     },
   });
 }
+
+/**
+ * De las líneas dadas, devuelve el conjunto de productoIds que son servicios
+ * (sin inventario). Útil para saltar el movimiento de stock en ventas/compras.
+ */
+export async function serviciosDeLineas(tx: Tx, lineas: { productoId: number }[]): Promise<Set<number>> {
+  const ids = [...new Set(lineas.map((l) => l.productoId))];
+  if (ids.length === 0) return new Set();
+  const prods = await tx.producto.findMany({ where: { id: { in: ids }, llevaInventario: false }, select: { id: true } });
+  return new Set(prods.map((p) => p.id));
+}

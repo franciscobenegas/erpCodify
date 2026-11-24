@@ -11,11 +11,11 @@ import { registrarCobro } from "./actions";
 
 export const metadata = { title: "Cobranzas" };
 
-const MEDIOS = ["Efectivo", "Transferencia", "Cheque", "Tarjeta", "Otro"];
+const MEDIOS_DEFECTO = ["Efectivo", "Transferencia", "Cheque", "Tarjeta", "Otro"];
 
 export default async function CobranzasPage() {
   const { db } = await getTenant("finanzas");
-  const [cuentas, facturas, cobros] = await Promise.all([
+  const [cuentas, facturas, cobros, formasPago] = await Promise.all([
     db.cuentaFinanciera.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
     db.factura.findMany({
       where: { condicion: "CREDITO", estado: "EMITIDA" },
@@ -23,7 +23,10 @@ export default async function CobranzasPage() {
       orderBy: { fecha: "asc" },
     }),
     db.cobro.findMany({ include: { cliente: true, cuenta: true }, orderBy: { fecha: "desc" }, take: 20 }),
+    db.formaPago.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
   ]);
+  // Formas de pago del catálogo; si todavía no cargaron ninguna, usamos los valores por defecto.
+  const medios = formasPago.length ? formasPago.map((f) => f.nombre) : MEDIOS_DEFECTO;
 
   // Saldo pendiente por factura
   const pendientes = facturas
@@ -117,8 +120,8 @@ export default async function CobranzasPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Monto"><Input name="monto" type="number" min={0} step="1" required /></Field>
                     <Field label="Medio">
-                      <NativeSelect name="medio" defaultValue="Efectivo">
-                        {MEDIOS.map((m) => <option key={m} value={m}>{m}</option>)}
+                      <NativeSelect name="medio" defaultValue={medios[0]}>
+                        {medios.map((m) => <option key={m} value={m}>{m}</option>)}
                       </NativeSelect>
                     </Field>
                   </div>

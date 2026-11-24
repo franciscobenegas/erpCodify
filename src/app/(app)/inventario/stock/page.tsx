@@ -18,7 +18,8 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
     db.producto.findMany({
       where: {
         activo: true,
-        ...(q && { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { codigo: { contains: q, mode: "insensitive" } }] }),
+        llevaInventario: true,
+        ...(q && { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { codigo: { contains: q, mode: "insensitive" } }, { codigoBarras: q }] }),
       },
       include: { stocks: true },
       orderBy: { nombre: "asc" },

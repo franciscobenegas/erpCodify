@@ -27,9 +27,20 @@ export function parseLineas(raw: FormDataEntryValue | null) {
   return p.data;
 }
 
-export async function productosOpcion(): Promise<ProductoOpcion[]> {
+/**
+ * Productos disponibles para una línea. Filtra por disponibilidad según el modo
+ * (solo habilitados para venta / compra) y adjunta unidades alternativas, escalas
+ * de precio por cantidad y códigos de barras para la conversión y búsqueda.
+ */
+export async function productosOpcion(modo?: "venta" | "compra"): Promise<ProductoOpcion[]> {
   const { db } = await getTenant();
-  const ps = await db.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } });
+  const disponibilidad =
+    modo === "venta" ? { habilitadoVenta: true } : modo === "compra" ? { habilitadoCompra: true } : {};
+  const ps = await db.producto.findMany({
+    where: { activo: true, ...disponibilidad },
+    orderBy: { nombre: "asc" },
+    include: { unidadesAlt: true, preciosCantidad: { orderBy: { cantidadMin: "asc" } } },
+  });
   return ps.map((p) => ({
     id: p.id,
     codigo: p.codigo,
@@ -38,5 +49,9 @@ export async function productosOpcion(): Promise<ProductoOpcion[]> {
     precioVenta: toNum(p.precioVenta),
     costo: toNum(p.costo),
     tasaIva: p.tasaIva,
+    codigoBarras: p.codigoBarras,
+    codigosAlt: p.codigosAlt,
+    unidadesAlt: p.unidadesAlt.map((u) => ({ nombre: u.nombre, factor: toNum(u.factor) })),
+    preciosCantidad: p.preciosCantidad.map((x) => ({ cantidadMin: toNum(x.cantidadMin), precio: toNum(x.precio) })),
   }));
 }

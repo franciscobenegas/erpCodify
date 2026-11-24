@@ -34,30 +34,77 @@ async function borrarImagen(url: string | null | undefined) {
 
 // ───────── Productos ─────────
 
+const zCheck = z.string().optional().transform((v) => v === "on");
+
 const productoSchema = z.object({
   id: z.coerce.number().int().optional(),
   codigo: z.string().trim().min(1, "requerido").toUpperCase(),
   nombre: z.string().trim().min(2, "requerido"),
   descripcion: zOptStr,
+  codigoBarras: zOptStr,
+  codigosAlt: z.string().optional().transform((v) => (v ? v.split(/[,\n]/).map((s) => s.trim()).filter(Boolean) : [])),
   unidad: z.string().trim().min(1).default("UN"),
   categoriaId: z.string().optional().transform((v) => (v ? Number(v) : null)),
+  marcaId: z.string().optional().transform((v) => (v ? Number(v) : null)),
+  modeloId: z.string().optional().transform((v) => (v ? Number(v) : null)),
   precioVenta: zNum.min(0),
   costo: zNum.min(0),
   tasaIva: z.coerce.number().refine((v) => [0, 5, 10].includes(v), "0, 5 o 10"),
   stockMinimo: zNum.min(0),
-  activo: z.string().optional().transform((v) => v === "on"),
+  stockIdeal: zNum.min(0),
+  esServicio: zCheck,
+  llevaInventario: zCheck,
+  habilitadoVenta: zCheck,
+  habilitadoCompra: zCheck,
+  activo: zCheck,
 });
+
+// Filas de las tablas repetibles (unidades alternativas y precios por cantidad),
+// que llegan como JSON en inputs ocultos.
+const unidadesAltSchema = z.array(z.object({ nombre: z.string().trim().min(1), factor: z.number().positive() })).catch([]);
+const preciosCantidadSchema = z.array(z.object({ cantidadMin: z.number().positive(), precio: z.number().min(0) })).catch([]);
+
+function parseJson<S extends z.ZodTypeAny>(raw: FormDataEntryValue | null, schema: S): z.infer<S> {
+  try {
+    return schema.parse(JSON.parse(typeof raw === "string" && raw ? raw : "[]"));
+  } catch {
+    return schema.parse([]);
+  }
+}
 
 export async function guardarProducto(_: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const { s, db } = await getTenant("inventario");
     const p = productoSchema.safeParse(formObj(fd));
     if (!p.success) return { error: zodMsg(p.error) };
-    const { id, ...data } = p.data;
-    // La categoría referenciada debe ser de esta empresa (el id viene del formulario).
+    const { id, ...rest } = p.data;
+    // Los servicios no mueven stock: fuerzan llevaInventario = false.
+    const data = { ...rest, llevaInventario: rest.esServicio ? false : rest.llevaInventario };
+    // Categoría, marca y modelo referenciados deben ser de esta empresa (los ids vienen del formulario).
     if (data.categoriaId != null && !(await db.categoria.findUnique({ where: { id: data.categoriaId }, select: { id: true } }))) {
       throw new ErrorNegocio("Categoría inválida");
     }
+    if (data.marcaId != null && !(await db.marca.findUnique({ where: { id: data.marcaId }, select: { id: true } }))) {
+      throw new ErrorNegocio("Marca inválida");
+    }
+    if (data.modeloId != null && !(await db.modeloProducto.findUnique({ where: { id: data.modeloId }, select: { id: true } }))) {
+      throw new ErrorNegocio("Modelo inválido");
+    }
+
+    const unidadesAlt = parseJson(fd.get("unidadesAlt"), unidadesAltSchema);
+    const preciosCantidad = parseJson(fd.get("preciosCantidad"), preciosCantidadSchema);
+
+    // Reescribe las tablas hijas (borrar + recrear) de un producto dentro de la transacción.
+    const sincronizarHijas = async (tx: typeof db, productoId: number) => {
+      await tx.productoUnidad.deleteMany({ where: { productoId } });
+      if (unidadesAlt.length) {
+        await tx.productoUnidad.createMany({ data: unidadesAlt.map((u) => ({ ...u, productoId, empresaId: s.empresaId })) });
+      }
+      await tx.productoPrecio.deleteMany({ where: { productoId } });
+      if (preciosCantidad.length) {
+        await tx.productoPrecio.createMany({ data: preciosCantidad.map((x) => ({ ...x, productoId, empresaId: s.empresaId })) });
+      }
+    };
 
     const archivo = fd.get("imagen");
     const nuevaImagen = archivo instanceof File && archivo.size > 0;
@@ -71,13 +118,21 @@ export async function guardarProducto(_: ActionState, fd: FormData): Promise<Act
       if (nuevaImagen) imagenUrl = await subirImagen(archivo, s.empresaId);
       else if (quitarImagen) imagenUrl = null;
 
-      const despues = await db.producto.update({ where: { id }, data: { ...data, imagenUrl } });
+      const despues = await db.$transaction(async (tx) => {
+        const prod = await tx.producto.update({ where: { id }, data: { ...data, imagenUrl } });
+        await sincronizarHijas(tx as typeof db, id);
+        return prod;
+      });
       // Si la imagen cambió o se quitó, borrar la anterior de Blob.
       if (antes.imagenUrl && antes.imagenUrl !== imagenUrl) await borrarImagen(antes.imagenUrl);
       await auditar({ modulo: "inventario", entidad: "Producto", entidadId: id, accion: "EDITAR", resumen: `Editó el producto ${despues.codigo} · ${despues.nombre}`, antes, despues });
     } else {
       const imagenUrl = nuevaImagen ? await subirImagen(archivo, s.empresaId) : null;
-      const despues = await db.producto.create({ data: { ...data, empresaId: s.empresaId, imagenUrl } });
+      const despues = await db.$transaction(async (tx) => {
+        const prod = await tx.producto.create({ data: { ...data, empresaId: s.empresaId, imagenUrl } });
+        await sincronizarHijas(tx as typeof db, prod.id);
+        return prod;
+      });
       await auditar({ modulo: "inventario", entidad: "Producto", entidadId: despues.id, accion: "CREAR", resumen: `Creó el producto ${despues.codigo} · ${despues.nombre}`, despues });
     }
   } catch (e) {
@@ -137,10 +192,11 @@ export async function ajustarStock(_: ActionState, fd: FormData): Promise<Action
 
     // Producto y depósito deben ser de esta empresa (los ids vienen del formulario).
     const [okProd, okDep] = await Promise.all([
-      db.producto.findUnique({ where: { id: productoId }, select: { id: true } }),
+      db.producto.findUnique({ where: { id: productoId }, select: { id: true, llevaInventario: true } }),
       db.deposito.findUnique({ where: { id: depositoId }, select: { id: true } }),
     ]);
     if (!okProd) throw new ErrorNegocio("Producto inválido");
+    if (!okProd.llevaInventario) throw new ErrorNegocio("Este producto es un servicio: no maneja stock.");
     if (!okDep) throw new ErrorNegocio("Depósito inválido");
 
     const r = await db.$transaction(async (tx) => {
@@ -191,11 +247,12 @@ export async function transferirStock(_: ActionState, fd: FormData): Promise<Act
 
     // Producto y depósitos deben ser de esta empresa (los ids vienen del formulario).
     const [okProd, okOrigen, okDestino] = await Promise.all([
-      db.producto.findUnique({ where: { id: productoId }, select: { id: true } }),
+      db.producto.findUnique({ where: { id: productoId }, select: { id: true, llevaInventario: true } }),
       db.deposito.findUnique({ where: { id: origenId }, select: { id: true } }),
       db.deposito.findUnique({ where: { id: destinoId }, select: { id: true } }),
     ]);
     if (!okProd) throw new ErrorNegocio("Producto inválido");
+    if (!okProd.llevaInventario) throw new ErrorNegocio("Este producto es un servicio: no maneja stock.");
     if (!okOrigen || !okDestino) throw new ErrorNegocio("Depósito inválido");
 
     const ref = `TRF-${Date.now()}`;

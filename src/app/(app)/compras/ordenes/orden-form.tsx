@@ -22,7 +22,7 @@ export async function OrdenForm({ orden }: { orden?: OrdenEditable }) {
   const [proveedores, depositos, productos] = await Promise.all([
     db.contacto.findMany({ where: { esProveedor: true, activo: true }, orderBy: { nombre: "asc" } }),
     db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
-    productosOpcion(),
+    productosOpcion("compra"),
   ]);
 
   return (

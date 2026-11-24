@@ -24,7 +24,7 @@ export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
   const [clientes, depositos, productos] = await Promise.all([
     db.contacto.findMany({ where: { esCliente: true, activo: true }, orderBy: { nombre: "asc" } }),
     db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
-    productosOpcion(),
+    productosOpcion("venta"),
   ]);
 
   return (

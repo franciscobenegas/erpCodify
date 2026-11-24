@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import type { EstadoOrdenCompra } from "@prisma/client";
 import { getTenant } from "@/lib/auth";
 import type { TenantDb } from "@/lib/tenant-db";
-import { moverStock } from "@/lib/stock";
+import { moverStock, serviciosDeLineas } from "@/lib/stock";
 import { parseLineas } from "@/lib/lineas";
 import { auditar } from "@/lib/auditoria";
 import { ErrorNegocio, formObj, mensajeError, zodMsg, zOptStr, type ActionState } from "@/lib/action";
@@ -125,16 +125,20 @@ export async function recibirOrden(id: number, _: ActionState, fd: FormData): Pr
       const o = await tx.ordenCompra.findUniqueOrThrow({ where: { id }, include: { lineas: true } });
       if (o.estado !== "CONFIRMADA") throw new ErrorNegocio("Solo se reciben órdenes confirmadas");
 
+      // Los servicios (sin inventario) no ingresan stock, pero sí actualizan su costo.
+      const servicios = await serviciosDeLineas(tx, o.lineas);
       for (const l of o.lineas) {
-        await moverStock(tx, {
-          empresaId: s.empresaId,
-          productoId: l.productoId,
-          depositoId: o.depositoId,
-          cantidad: Number(l.cantidad),
-          origen: "COMPRA",
-          referencia: `OC #${o.id}${facturaProveedor ? ` · Fact. ${facturaProveedor}` : ""}`,
-          usuarioId: s.userId,
-        });
+        if (!servicios.has(l.productoId)) {
+          await moverStock(tx, {
+            empresaId: s.empresaId,
+            productoId: l.productoId,
+            depositoId: o.depositoId,
+            cantidad: Number(l.cantidad),
+            origen: "COMPRA",
+            referencia: `OC #${o.id}${facturaProveedor ? ` · Fact. ${facturaProveedor}` : ""}`,
+            usuarioId: s.userId,
+          });
+        }
         // Costo = último costo de compra (simple). Para costo promedio ponderado, calcular acá.
         await tx.producto.update({ where: { id: l.productoId }, data: { costo: l.costo } });
       }

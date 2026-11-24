@@ -17,7 +17,7 @@ export const metadata = { title: "Productos" };
 export default async function ProductosPage({ searchParams }: { searchParams: Promise<{ q?: string; cat?: string }> }) {
   const { q, cat } = await searchParams;
   const where: Prisma.ProductoWhereInput = {
-    ...(q && { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { codigo: { contains: q, mode: "insensitive" } }] }),
+    ...(q && { OR: [{ nombre: { contains: q, mode: "insensitive" } }, { codigo: { contains: q, mode: "insensitive" } }, { codigoBarras: q }] }),
     ...(cat && { categoriaId: Number(cat) }),
   };
   const { db } = await getTenant();

@@ -33,7 +33,12 @@ model Empresa {
   usuarios    Usuario[]
   roles       Rol[]
   categorias  Categoria[]
+  marcas      Marca[]
+  modelos     ModeloProducto[]
+  unidades    UnidadMedida[]
   productos   Producto[]
+  productoUnidades ProductoUnidad[]
+  productoPrecios  ProductoPrecio[]
   depositos   Deposito[]
   stocks      Stock[]
   movimientos MovimientoStock[]
@@ -45,6 +50,9 @@ model Empresa {
   movimientosCaja MovimientoCaja[]
   cobros          Cobro[]
   pagos           Pago[]
+  formasPago      FormaPago[]
+  cuentasGasto    CuentaGasto[]
+  centrosCosto    CentroCosto[]
 }
 
 // ───────────── Seguridad ─────────────
@@ -99,6 +107,46 @@ model Categoria {
   @@unique([empresaId, nombre])
 }
 
+model Marca {
+  id        Int              @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa          @relation(fields: [empresaId], references: [id])
+  nombre    String
+  activo    Boolean          @default(true)
+  modelos   ModeloProducto[]
+  productos Producto[]
+
+  @@unique([empresaId, nombre])
+}
+
+model ModeloProducto {
+  id        Int        @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa    @relation(fields: [empresaId], references: [id])
+  nombre    String
+  marcaId   Int?
+  marca     Marca?     @relation(fields: [marcaId], references: [id])
+  activo    Boolean    @default(true)
+  productos Producto[]
+
+  @@unique([empresaId, nombre])
+}
+
+// Catálogo de unidades de medida. El `factor` expresa cuántas unidades base
+// equivale (1 = unidad base); sienta la base para conversiones (ej. CJA = 12 UN).
+model UnidadMedida {
+  id        Int     @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+  codigo    String
+  nombre    String
+  decimales Int     @default(0)
+  factor    Decimal @default(1) @db.Decimal(14, 4)
+  activo    Boolean @default(true)
+
+  @@unique([empresaId, codigo])
+}
+
 model Producto {
   id          Int        @id @default(autoincrement())
   empresaId   Int
@@ -108,14 +156,28 @@ model Producto {
   descripcion String?
   // URL pública de la imagen en Vercel Blob (null si no tiene).
   imagenUrl   String?
+  // Código de barras EAN/UPC (para cobrar en caja con lector) y códigos alternativos.
+  codigoBarras String?
+  codigosAlt   String[]  @default([])
   unidad      String     @default("UN")
   categoriaId Int?
   categoria   Categoria? @relation(fields: [categoriaId], references: [id])
+  marcaId     Int?
+  marca       Marca?     @relation(fields: [marcaId], references: [id])
+  modeloId    Int?
+  modelo      ModeloProducto? @relation(fields: [modeloId], references: [id])
   precioVenta Decimal    @db.Decimal(18, 2)
   costo       Decimal    @default(0) @db.Decimal(18, 2)
   // Tasa de IVA: 10, 5 o 0 (exenta). Precios con IVA incluido.
   tasaIva     Int        @default(10)
   stockMinimo Decimal    @default(0) @db.Decimal(14, 3)
+  stockIdeal  Decimal    @default(0) @db.Decimal(14, 3)
+  // Servicio intangible: no mueve stock. `llevaInventario` = false para servicios.
+  esServicio       Boolean @default(false)
+  llevaInventario  Boolean @default(true)
+  // Disponibilidad fina (más allá de `activo`, que es el on/off maestro).
+  habilitadoVenta  Boolean @default(true)
+  habilitadoCompra Boolean @default(true)
   activo      Boolean    @default(true)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
@@ -124,8 +186,39 @@ model Producto {
   movimientos  MovimientoStock[]
   lineasVenta  FacturaLinea[]
   lineasCompra OrdenCompraLinea[]
+  unidadesAlt     ProductoUnidad[]
+  preciosCantidad ProductoPrecio[]
 
   @@unique([empresaId, codigo])
+}
+
+// Unidades de medida alternativas por producto, con su factor de conversión a la
+// unidad base (ej. "Docena" = 12). Se aplican al comprar/vender (Fase B).
+model ProductoUnidad {
+  id         Int      @id @default(autoincrement())
+  empresaId  Int
+  empresa    Empresa  @relation(fields: [empresaId], references: [id])
+  productoId Int
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  nombre     String
+  factor     Decimal  @db.Decimal(14, 4)
+
+  @@index([productoId])
+  @@index([empresaId])
+}
+
+// Precios por cantidad (escala mayorista): a partir de `cantidadMin`, aplica `precio`.
+model ProductoPrecio {
+  id          Int      @id @default(autoincrement())
+  empresaId   Int
+  empresa     Empresa  @relation(fields: [empresaId], references: [id])
+  productoId  Int
+  producto    Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  cantidadMin Decimal  @db.Decimal(14, 3)
+  precio      Decimal  @db.Decimal(18, 2)
+
+  @@index([productoId])
+  @@index([empresaId])
 }
 
 model Deposito {
@@ -367,11 +460,51 @@ model MovimientoCaja {
   origen     OrigenMovimientoCaja
   // Referencia libre (ej. "Cobro #12", "Factura 001-001-0000007").
   referencia String?
+  // Clasificación opcional del egreso (para reportes de gasto por rubro / centro).
+  cuentaGastoId Int?
+  cuentaGasto   CuentaGasto? @relation(fields: [cuentaGastoId], references: [id])
+  centroCostoId Int?
+  centroCosto   CentroCosto? @relation(fields: [centroCostoId], references: [id])
   usuarioId  Int?
   usuario    Usuario?             @relation(fields: [usuarioId], references: [id])
 
   @@index([empresaId, fecha])
   @@index([cuentaId, fecha])
+}
+
+// Catálogo de medios de pago (Efectivo, Transferencia, Cheque, Tarjeta…).
+model FormaPago {
+  id        Int     @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+  nombre    String
+  activo    Boolean @default(true)
+
+  @@unique([empresaId, nombre])
+}
+
+// Rubros de gasto para clasificar egresos de caja (Alquiler, Servicios, Sueldos…).
+model CuentaGasto {
+  id        Int              @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa          @relation(fields: [empresaId], references: [id])
+  nombre    String
+  activo    Boolean          @default(true)
+  movimientos MovimientoCaja[]
+
+  @@unique([empresaId, nombre])
+}
+
+// Centros de costo para imputar egresos (Administración, Ventas, Producción…).
+model CentroCosto {
+  id        Int              @id @default(autoincrement())
+  empresaId Int
+  empresa   Empresa          @relation(fields: [empresaId], references: [id])
+  nombre    String
+  activo    Boolean          @default(true)
+  movimientos MovimientoCaja[]
+
+  @@unique([empresaId, nombre])
 }
 
 // Cobranzas (cuentas por cobrar). Un cobro de un cliente se aplica a una o varias

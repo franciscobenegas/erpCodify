@@ -24,6 +24,9 @@ export async function moverCaja(
     usuarioId?: number;
     fecha?: Date;
     permitirNegativo?: boolean;
+    // Clasificación opcional del egreso (rubro de gasto / centro de costo).
+    cuentaGastoId?: number | null;
+    centroCostoId?: number | null;
   },
 ) {
   if (m.monto <= 0) throw new ErrorNegocio("El monto debe ser mayor a 0.");
@@ -49,6 +52,8 @@ export async function moverCaja(
       concepto: m.concepto,
       origen: m.origen,
       referencia: m.referencia ?? null,
+      cuentaGastoId: m.cuentaGastoId ?? null,
+      centroCostoId: m.centroCostoId ?? null,
       usuarioId: m.usuarioId,
       ...(m.fecha ? { fecha: m.fecha } : {}),
     },

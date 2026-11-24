@@ -27,7 +27,7 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
       orderBy: { fecha: "desc" },
       take: 200,
     }),
-    db.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, codigo: true } }),
+    db.producto.findMany({ where: { activo: true, llevaInventario: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, codigo: true } }),
     db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
   ]);
 

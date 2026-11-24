@@ -15,9 +15,28 @@ export async function sembrarEjemplos(tx: Prisma.TransactionClient, empresaId: n
   const almacen = await tx.categoria.create({ data: { empresaId, nombre: "Almacén" } });
   const limpieza = await tx.categoria.create({ data: { empresaId, nombre: "Limpieza" } });
 
+  // Catálogos de configuración con valores de uso común.
+  await tx.unidadMedida.createMany({
+    data: [
+      { empresaId, codigo: "UN", nombre: "Unidad", decimales: 0, factor: 1 },
+      { empresaId, codigo: "KG", nombre: "Kilogramo", decimales: 3, factor: 1 },
+      { empresaId, codigo: "LT", nombre: "Litro", decimales: 3, factor: 1 },
+      { empresaId, codigo: "CJA", nombre: "Caja (12 un.)", decimales: 0, factor: 12 },
+    ],
+  });
+  await tx.formaPago.createMany({
+    data: ["Efectivo", "Transferencia", "Cheque", "Tarjeta"].map((nombre) => ({ empresaId, nombre })),
+  });
+  await tx.cuentaGasto.createMany({
+    data: ["Alquiler", "Servicios básicos", "Sueldos", "Impuestos", "Fletes"].map((nombre) => ({ empresaId, nombre })),
+  });
+  await tx.centroCosto.createMany({
+    data: ["Administración", "Ventas", "Depósito"].map((nombre) => ({ empresaId, nombre })),
+  });
+
   const defs = [
-    { codigo: "BEB-001", nombre: "Agua mineral 2L", categoriaId: bebidas.id, precioVenta: 7000, costo: 4500, tasaIva: 10, stock: 50 },
-    { codigo: "ALM-001", nombre: "Arroz 1kg", categoriaId: almacen.id, precioVenta: 9500, costo: 6800, tasaIva: 5, stock: 80 },
+    { codigo: "BEB-001", nombre: "Agua mineral 2L", categoriaId: bebidas.id, codigoBarras: "7840001000019", precioVenta: 7000, costo: 4500, tasaIva: 10, stock: 50 },
+    { codigo: "ALM-001", nombre: "Arroz 1kg", categoriaId: almacen.id, codigoBarras: "7840001000026", precioVenta: 9500, costo: 6800, tasaIva: 5, stock: 80 },
     { codigo: "LIM-001", nombre: "Detergente 750ml", categoriaId: limpieza.id, precioVenta: 11000, costo: 7200, tasaIva: 10, stock: 30 },
   ];
 
@@ -26,6 +45,15 @@ export async function sembrarEjemplos(tx: Prisma.TransactionClient, empresaId: n
     const prod = await tx.producto.create({ data: { empresaId, ...p, stockMinimo: 10 } });
     prods.push({ id: prod.id, stock });
   }
+
+  // Ejemplos de unidad alternativa (Agua: caja de 12) y precio por cantidad (Arroz mayorista).
+  await tx.productoUnidad.create({ data: { empresaId, productoId: prods[0].id, nombre: "Caja (12)", factor: 12 } });
+  await tx.productoPrecio.createMany({
+    data: [
+      { empresaId, productoId: prods[1].id, cantidadMin: 10, precio: 9000 },
+      { empresaId, productoId: prods[1].id, cantidadMin: 50, precio: 8500 },
+    ],
+  });
 
   await tx.stock.createMany({
     data: prods.map((x) => ({ empresaId, productoId: x.id, depositoId: deposito.id, cantidad: x.stock })),

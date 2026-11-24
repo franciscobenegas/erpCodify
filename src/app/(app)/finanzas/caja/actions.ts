@@ -42,6 +42,8 @@ const movSchema = z.object({
   monto: zNum.positive("debe ser mayor a 0"),
   concepto: z.string().trim().min(2, "describí el movimiento"),
   nota: zOptStr,
+  cuentaGastoId: z.string().optional().transform((v) => (v ? Number(v) : null)),
+  centroCostoId: z.string().optional().transform((v) => (v ? Number(v) : null)),
 });
 
 export async function registrarMovimiento(_: ActionState, fd: FormData): Promise<ActionState> {
@@ -50,9 +52,19 @@ export async function registrarMovimiento(_: ActionState, fd: FormData): Promise
     const p = movSchema.safeParse(formObj(fd));
     if (!p.success) return { error: zodMsg(p.error) };
     const { cuentaId, tipo, monto, concepto, nota } = p.data;
+    // La clasificación de gasto solo aplica a egresos.
+    const cuentaGastoId = tipo === "EGRESO" ? p.data.cuentaGastoId : null;
+    const centroCostoId = tipo === "EGRESO" ? p.data.centroCostoId : null;
 
     const cuenta = await db.cuentaFinanciera.findUnique({ where: { id: cuentaId }, select: { id: true, nombre: true } });
     if (!cuenta) throw new ErrorNegocio("Cuenta inválida");
+    // Los ids de clasificación vienen del formulario: validar que sean de esta empresa.
+    if (cuentaGastoId != null && !(await db.cuentaGasto.findUnique({ where: { id: cuentaGastoId }, select: { id: true } }))) {
+      throw new ErrorNegocio("Cuenta de gasto inválida");
+    }
+    if (centroCostoId != null && !(await db.centroCosto.findUnique({ where: { id: centroCostoId }, select: { id: true } }))) {
+      throw new ErrorNegocio("Centro de costo inválido");
+    }
 
     await db.$transaction(async (tx) => {
       await moverCaja(tx, {
@@ -64,6 +76,8 @@ export async function registrarMovimiento(_: ActionState, fd: FormData): Promise
         origen: tipo === "INGRESO" ? "INGRESO" : "GASTO",
         referencia: nota,
         usuarioId: s.userId,
+        cuentaGastoId,
+        centroCostoId,
       });
     });
 

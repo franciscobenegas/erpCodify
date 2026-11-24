@@ -6,7 +6,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { getTenant } from "@/lib/auth";
 import type { TenantDb } from "@/lib/tenant-db";
 import type { SessionPayload } from "@/lib/session";
-import { moverStock } from "@/lib/stock";
+import { moverStock, serviciosDeLineas } from "@/lib/stock";
 import { parseLineas } from "@/lib/lineas";
 import { calcularTotales, formatNumeroFactura } from "@/lib/iva";
 import { auditar } from "@/lib/auditoria";
@@ -114,7 +114,10 @@ async function emitirInterno(db: TenantDb, s: SessionPayload, id: number) {
     }
     const numero = formatNumeroFactura(emp.establecimiento, emp.puntoExpedicion, emp.siguienteNumero - 1);
 
+    // Los servicios (sin inventario) no mueven stock.
+    const servicios = await serviciosDeLineas(tx, f.lineas);
     for (const l of f.lineas) {
+      if (servicios.has(l.productoId)) continue;
       await moverStock(tx, {
         empresaId: s.empresaId,
         productoId: l.productoId,
@@ -160,7 +163,9 @@ export async function anularFactura(id: number, _: ActionState): Promise<ActionS
     await db.$transaction(async (tx) => {
       const f = await tx.factura.findUniqueOrThrow({ where: { id }, include: { lineas: true } });
       if (f.estado !== "EMITIDA") throw new ErrorNegocio("Solo se pueden anular facturas emitidas");
+      const servicios = await serviciosDeLineas(tx, f.lineas);
       for (const l of f.lineas) {
+        if (servicios.has(l.productoId)) continue;
         await moverStock(tx, {
           empresaId: s.empresaId,
           productoId: l.productoId,

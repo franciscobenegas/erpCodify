@@ -18,9 +18,11 @@ const ORIGEN: Record<string, string> = {
 
 export default async function CajaPage() {
   const { db } = await getTenant("finanzas");
-  const [cuentas, movimientos] = await Promise.all([
+  const [cuentas, movimientos, cuentasGasto, centrosCosto] = await Promise.all([
     db.cuentaFinanciera.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
     db.movimientoCaja.findMany({ include: { cuenta: true, usuario: true }, orderBy: { fecha: "desc" }, take: 150 }),
+    db.cuentaGasto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    db.centroCosto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
   ]);
   const saldoTotal = cuentas.reduce((a, c) => a + toNum(c.saldo), 0);
 
@@ -109,6 +111,26 @@ export default async function CajaPage() {
                     <Field label="Monto"><Input name="monto" type="number" min={0} step="1" required /></Field>
                   </div>
                   <Field label="Concepto"><Input name="concepto" placeholder="Pago de alquiler, aporte de socio…" required /></Field>
+                  {(cuentasGasto.length > 0 || centrosCosto.length > 0) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {cuentasGasto.length > 0 && (
+                        <Field label="Rubro de gasto" hint="Solo egresos">
+                          <NativeSelect name="cuentaGastoId" defaultValue="">
+                            <option value="">—</option>
+                            {cuentasGasto.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                          </NativeSelect>
+                        </Field>
+                      )}
+                      {centrosCosto.length > 0 && (
+                        <Field label="Centro de costo" hint="Solo egresos">
+                          <NativeSelect name="centroCostoId" defaultValue="">
+                            <option value="">—</option>
+                            {centrosCosto.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                          </NativeSelect>
+                        </Field>
+                      )}
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <SubmitButton>Registrar</SubmitButton>
                     <Button type="reset" variant="ghost">Cancelar</Button>
