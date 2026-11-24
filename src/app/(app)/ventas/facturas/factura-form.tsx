@@ -1,14 +1,13 @@
-import Link from "next/link";
 import { getTenant } from "@/lib/auth";
 import { productosOpcion } from "@/lib/lineas";
 import { toNum } from "@/lib/utils";
-import { ActionForm, Field, SubmitButton } from "@/components/form";
+import { ActionForm, Field } from "@/components/form";
 import { ClienteCombo } from "@/components/cliente-combo";
 import { Input, NativeSelect } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TIPOS_COMPROBANTE } from "@/lib/comprobante";
 import { VentaDetalle } from "./venta-detalle";
+import { BotonesVenta } from "./botones-venta";
 import { guardarFactura, importarItemsFactura } from "./actions";
 
 type FacturaEditable = {
@@ -81,11 +80,7 @@ export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
         pagosIniciales={factura?.pagos.map((p) => ({ formaPagoId: p.formaPagoId, monto: toNum(p.monto as number) }))}
       />
 
-      <div className="flex flex-wrap gap-2">
-        <SubmitButton name="accion" value="emitir">Guardar y emitir</SubmitButton>
-        <SubmitButton name="accion" value="borrador" variant="outline">Guardar borrador</SubmitButton>
-        <Button variant="ghost" asChild><Link href="/ventas/facturas">Cancelar</Link></Button>
-      </div>
+      <BotonesVenta />
     </ActionForm>
   );
 }
