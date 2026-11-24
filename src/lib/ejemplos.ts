@@ -77,21 +77,26 @@ export async function sembrarEjemplos(tx: Prisma.TransactionClient, empresaId: n
     ],
   });
 
-  // Timbrado inicial para FACTURA, copiado del placeholder de la empresa. El admin
-  // lo completa (y agrega otros tipos) en Configuración → Timbrados.
+  // Sucursal + punto de venta iniciales, con el timbrado FACTURA copiado del
+  // placeholder de la empresa. El admin los completa en Configuración.
   const emp = await tx.empresa.findUniqueOrThrow({
     where: { id: empresaId },
     select: { timbrado: true, timbradoInicio: true, timbradoFin: true, establecimiento: true, puntoExpedicion: true, siguienteNumero: true },
   });
+  const sucursal = await tx.sucursal.create({
+    data: { empresaId, nombre: "Casa Matriz", establecimiento: emp.establecimiento, direccion: "Casa matriz" },
+  });
+  const punto = await tx.puntoVenta.create({
+    data: { empresaId, sucursalId: sucursal.id, nombre: "Caja 1", puntoExpedicion: emp.puntoExpedicion },
+  });
   await tx.timbradoComprobante.create({
     data: {
       empresaId,
+      puntoVentaId: punto.id,
       tipo: "FACTURA",
       timbrado: emp.timbrado,
       timbradoInicio: emp.timbradoInicio,
       timbradoFin: emp.timbradoFin,
-      establecimiento: emp.establecimiento,
-      puntoExpedicion: emp.puntoExpedicion,
       siguienteNumero: emp.siguienteNumero,
     },
   });

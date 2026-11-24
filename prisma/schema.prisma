@@ -54,6 +54,8 @@ model Empresa {
   cuentasGasto    CuentaGasto[]
   centrosCosto    CentroCosto[]
   timbrados       TimbradoComprobante[]
+  sucursales      Sucursal[]
+  puntosVenta     PuntoVenta[]
 }
 
 // ───────────── Seguridad ─────────────
@@ -323,25 +325,68 @@ enum TipoComprobante {
   AUTOFACTURA
 }
 
-// Timbrado y numeración independientes por tipo de comprobante. Cada tipo lleva
-// su propio rango/vigencia (exigencia de la SET). La emisión bloquea esta fila
-// para reservar el número de forma concurrente-segura.
+// Sucursal / establecimiento físico. Aporta el código de establecimiento (3 díg.)
+// que es la primera parte del número de comprobante.
+model Sucursal {
+  id              Int          @id @default(autoincrement())
+  empresaId       Int
+  empresa         Empresa      @relation(fields: [empresaId], references: [id])
+  nombre          String
+  establecimiento String       @default("001")
+  direccion       String?
+  activo          Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+
+  puntosVenta PuntoVenta[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId])
+}
+
+// Punto de venta / caja emisora dentro de una sucursal. Aporta el punto de
+// expedición (3 díg.) y es la unidad sobre la que corre la numeración.
+model PuntoVenta {
+  id              Int          @id @default(autoincrement())
+  empresaId       Int
+  empresa         Empresa      @relation(fields: [empresaId], references: [id])
+  sucursalId      Int
+  sucursal        Sucursal     @relation(fields: [sucursalId], references: [id])
+  nombre          String
+  puntoExpedicion String       @default("001")
+  activo          Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+
+  timbrados TimbradoComprobante[]
+  facturas  Factura[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId])
+  @@index([sucursalId])
+}
+
+// Timbrado y numeración por punto de venta y tipo de comprobante. Cada combinación
+// lleva su propio rango/vigencia (exigencia de la SET). La emisión bloquea esta
+// fila para reservar el número de forma concurrente-segura.
+// Nota: establecimiento/puntoExpedicion se derivan de Sucursal/PuntoVenta; las
+// columnas homónimas de acá quedaron como legacy (sin uso) tras el #5.
 model TimbradoComprobante {
   id              Int             @id @default(autoincrement())
   empresaId       Int
   empresa         Empresa         @relation(fields: [empresaId], references: [id])
+  puntoVentaId    Int?
+  puntoVenta      PuntoVenta?     @relation(fields: [puntoVentaId], references: [id])
   tipo            TipoComprobante
   timbrado        String
   timbradoInicio  DateTime        @db.Date
   timbradoFin     DateTime        @db.Date
-  establecimiento String          @default("001")
-  puntoExpedicion String          @default("001")
+  establecimiento String          @default("001") // legacy (ver nota)
+  puntoExpedicion String          @default("001") // legacy (ver nota)
   siguienteNumero Int             @default(1)
   activo          Boolean         @default(true)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  @@unique([empresaId, tipo])
+  @@unique([puntoVentaId, tipo])
   @@index([empresaId])
 }
 
@@ -350,6 +395,8 @@ model Factura {
   empresaId   Int
   empresa     Empresa        @relation(fields: [empresaId], references: [id])
   tipoComprobante TipoComprobante @default(FACTURA)
+  puntoVentaId Int?
+  puntoVenta   PuntoVenta?    @relation(fields: [puntoVentaId], references: [id])
   // 001-001-0000001; null mientras es borrador
   numero      String?
   timbrado    String?

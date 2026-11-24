@@ -15,6 +15,7 @@ type FacturaEditable = {
   id: number;
   clienteId: number;
   depositoId: number;
+  puntoVentaId: number | null;
   tipoComprobante: string;
   condicion: string;
   observacion: string | null;
@@ -24,11 +25,12 @@ type FacturaEditable = {
 
 export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
   const { db } = await getTenant();
-  const [clientes, depositos, productos, formasPago] = await Promise.all([
+  const [clientes, depositos, productos, formasPago, puntos] = await Promise.all([
     db.contacto.findMany({ where: { esCliente: true, activo: true }, orderBy: { nombre: "asc" } }),
     db.deposito.findMany({ where: { activo: true }, orderBy: { id: "asc" } }),
     productosOpcion("venta"),
     db.formaPago.findMany({ where: { activo: true }, orderBy: { nombre: "asc" }, include: { cuenta: { select: { id: true, nombre: true } } } }),
+    db.puntoVenta.findMany({ where: { activo: true }, orderBy: { nombre: "asc" }, include: { sucursal: { select: { nombre: true } } } }),
   ]);
 
   const formas = formasPago.map((f) => ({ id: f.id, nombre: f.nombre, cuentaId: f.cuentaId, cuentaNombre: f.cuenta?.nombre ?? null }));
@@ -48,6 +50,12 @@ export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
               }))}
             />
           </Field>
+          <Field label="Punto de venta">
+            <NativeSelect name="puntoVentaId" defaultValue={factura?.puntoVentaId ?? puntos[0]?.id} required>
+              {puntos.length === 0 && <option value="">Sin puntos de venta</option>}
+              {puntos.map((p) => <option key={p.id} value={p.id}>{p.sucursal.nombre} · {p.nombre}</option>)}
+            </NativeSelect>
+          </Field>
           <Field label="Tipo de comprobante">
             <NativeSelect name="tipoComprobante" defaultValue={factura?.tipoComprobante ?? "FACTURA"}>
               {TIPOS_COMPROBANTE.map((t) => <option key={t.tipo} value={t.tipo}>{t.label}</option>)}
@@ -58,7 +66,7 @@ export async function FacturaForm({ factura }: { factura?: FacturaEditable }) {
               {depositos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
             </NativeSelect>
           </Field>
-          <Field label="Observación" className="sm:col-span-2 lg:col-span-4">
+          <Field label="Observación" className="sm:col-span-2 lg:col-span-3">
             <Input name="observacion" defaultValue={factura?.observacion ?? ""} />
           </Field>
         </CardContent>

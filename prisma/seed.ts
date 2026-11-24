@@ -22,18 +22,28 @@ async function main() {
   });
   const empresaId = empresa.id;
 
-  // Timbrado inicial para FACTURA (cada tipo de comprobante lleva su propia numeración).
+  // Sucursal + punto de venta iniciales, con el timbrado FACTURA (cada punto de
+  // venta y tipo de comprobante lleva su propia numeración).
+  const sucursal = await prisma.sucursal.upsert({
+    where: { empresaId_nombre: { empresaId, nombre: "Casa Matriz" } },
+    update: {},
+    create: { empresaId, nombre: "Casa Matriz", establecimiento: empresa.establecimiento, direccion: empresa.direccion },
+  });
+  const puntoVenta = await prisma.puntoVenta.upsert({
+    where: { empresaId_nombre: { empresaId, nombre: "Caja 1" } },
+    update: {},
+    create: { empresaId, sucursalId: sucursal.id, nombre: "Caja 1", puntoExpedicion: empresa.puntoExpedicion },
+  });
   await prisma.timbradoComprobante.upsert({
-    where: { empresaId_tipo: { empresaId, tipo: "FACTURA" } },
+    where: { puntoVentaId_tipo: { puntoVentaId: puntoVenta.id, tipo: "FACTURA" } },
     update: {},
     create: {
       empresaId,
+      puntoVentaId: puntoVenta.id,
       tipo: "FACTURA",
       timbrado: empresa.timbrado,
       timbradoInicio: empresa.timbradoInicio,
       timbradoFin: empresa.timbradoFin,
-      establecimiento: empresa.establecimiento,
-      puntoExpedicion: empresa.puntoExpedicion,
       siguienteNumero: empresa.siguienteNumero,
     },
   });

@@ -11,8 +11,8 @@ async function main() {
   const empresas = await prisma.empresa.findMany();
   let creados = 0;
   for (const e of empresas) {
-    const existe = await prisma.timbradoComprobante.findUnique({
-      where: { empresaId_tipo: { empresaId: e.id, tipo: "FACTURA" } },
+    const existe = await prisma.timbradoComprobante.findFirst({
+      where: { empresaId: e.id, tipo: "FACTURA" },
     });
     if (existe) continue;
     await prisma.timbradoComprobante.create({

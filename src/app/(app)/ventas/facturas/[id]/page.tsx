@@ -23,7 +23,7 @@ export default async function FacturaPage({
   const { db } = await getTenant();
   const f = await db.factura.findUnique({
     where: { id: Number(id) },
-    include: { cliente: true, deposito: true, usuario: true, lineas: { include: { producto: true }, orderBy: { id: "asc" } }, pagos: { include: { formaPago: true, cuenta: true } }, cobroAplicaciones: { select: { monto: true } } },
+    include: { cliente: true, deposito: true, usuario: true, puntoVenta: { include: { sucursal: { select: { nombre: true } } } }, lineas: { include: { producto: true }, orderBy: { id: "asc" } }, pagos: { include: { formaPago: true, cuenta: true } }, cobroAplicaciones: { select: { monto: true } } },
   });
   if (!f) notFound();
 
@@ -101,6 +101,7 @@ export default async function FacturaPage({
               <div className="text-muted-foreground">RUC {f.cliente.ruc ?? "—"}</div>
               {f.cliente.direccion && <div className="text-muted-foreground">{f.cliente.direccion}</div>}
               <div className="mt-2 text-muted-foreground">Depósito: {f.deposito.nombre}</div>
+              {f.puntoVenta && <div className="text-muted-foreground">Punto de venta: {f.puntoVenta.sucursal.nombre} · {f.puntoVenta.nombre}</div>}
               {f.usuario && <div className="text-muted-foreground">Cargada por: {f.usuario.nombre}</div>}
               {f.observacion && <div className="mt-2">{f.observacion}</div>}
             </CardContent>

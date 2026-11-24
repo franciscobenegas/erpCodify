@@ -21,6 +21,7 @@ const cabecera = z.object({
   id: z.coerce.number().int().optional(),
   clienteId: z.coerce.number().int().positive("elegí un cliente"),
   depositoId: z.coerce.number().int().positive("elegí un depósito"),
+  puntoVentaId: z.coerce.number().int().positive("elegí un punto de venta"),
   tipoComprobante: z.enum(["FACTURA", "BOLETA", "PEQUENO_CONTRIBUYENTE", "AUTOFACTURA"]),
   condicion: z.enum(["CONTADO", "CREDITO"]),
   observacion: zOptStr,
@@ -87,13 +88,15 @@ export async function guardarFactura(_: ActionState, fd: FormData): Promise<Acti
       });
     }
 
-    // Cliente y depósito deben ser de esta empresa (los ids vienen del formulario).
-    const [okCliente, okDeposito] = await Promise.all([
+    // Cliente, depósito y punto de venta deben ser de esta empresa (los ids vienen del formulario).
+    const [okCliente, okDeposito, okPunto] = await Promise.all([
       db.contacto.findUnique({ where: { id: cab.clienteId }, select: { id: true } }),
       db.deposito.findUnique({ where: { id: cab.depositoId }, select: { id: true } }),
+      db.puntoVenta.findUnique({ where: { id: cab.puntoVentaId }, select: { id: true } }),
     ]);
     if (!okCliente) throw new ErrorNegocio("Cliente inválido");
     if (!okDeposito) throw new ErrorNegocio("Depósito inválido");
+    if (!okPunto) throw new ErrorNegocio("Punto de venta inválido");
 
     const antes = facturaId ? await db.factura.findUnique({ where: { id: facturaId }, include: { lineas: true, pagos: true } }) : null;
 
@@ -152,24 +155,25 @@ async function emitirInterno(db: TenantDb, s: SessionPayload, id: number) {
       }
     }
 
-    // Timbrado/numeración propios del tipo de comprobante.
-    const tc = await tx.timbradoComprobante.findUnique({
-      where: { empresaId_tipo: { empresaId: s.empresaId, tipo: f.tipoComprobante } },
-    });
-    if (!tc) throw new ErrorNegocio(`No hay timbrado configurado para ${nombreComprobante(f.tipoComprobante)}. Cargalo en Configuración → Timbrados.`);
-    if (!tc.activo) throw new ErrorNegocio(`El timbrado de ${nombreComprobante(f.tipoComprobante)} está inactivo.`);
+    // Punto de venta: aporta sucursal (establecimiento) y punto de expedición.
+    if (!f.puntoVentaId) throw new ErrorNegocio("Elegí un punto de venta antes de emitir.");
+    const pv = await tx.puntoVenta.findUnique({ where: { id: f.puntoVentaId }, include: { sucursal: true } });
+    if (!pv || !pv.activo) throw new ErrorNegocio("El punto de venta no está disponible.");
+
+    // Timbrado/numeración propios del punto de venta y tipo de comprobante.
+    const clave = { puntoVentaId_tipo: { puntoVentaId: f.puntoVentaId, tipo: f.tipoComprobante } };
+    const tc = await tx.timbradoComprobante.findUnique({ where: clave });
+    if (!tc) throw new ErrorNegocio(`No hay timbrado para ${nombreComprobante(f.tipoComprobante)} en ${pv.nombre}. Cargalo en Configuración → Timbrados.`);
+    if (!tc.activo) throw new ErrorNegocio(`El timbrado de ${nombreComprobante(f.tipoComprobante)} en ${pv.nombre} está inactivo.`);
     const hoy = new Date();
     const dia = hoyISO(); // fecha de hoy en Paraguay, comparada contra columnas @db.Date
     if (dia < tc.timbradoInicio.toISOString().slice(0, 10) || dia > tc.timbradoFin.toISOString().slice(0, 10)) {
-      throw new ErrorNegocio(`El timbrado de ${nombreComprobante(f.tipoComprobante)} no está vigente. Actualizalo en Configuración → Timbrados.`);
+      throw new ErrorNegocio(`El timbrado de ${nombreComprobante(f.tipoComprobante)} en ${pv.nombre} no está vigente. Actualizalo en Configuración → Timbrados.`);
     }
     // Reservar número: el UPDATE bloquea esta fila hasta el fin de la transacción,
-    // así dos emisiones simultáneas del mismo tipo nunca obtienen el mismo número.
-    const tcUpd = await tx.timbradoComprobante.update({
-      where: { empresaId_tipo: { empresaId: s.empresaId, tipo: f.tipoComprobante } },
-      data: { siguienteNumero: { increment: 1 } },
-    });
-    const numero = formatNumeroFactura(tc.establecimiento, tc.puntoExpedicion, tcUpd.siguienteNumero - 1);
+    // así dos emisiones simultáneas del mismo punto/tipo nunca obtienen el mismo número.
+    const tcUpd = await tx.timbradoComprobante.update({ where: clave, data: { siguienteNumero: { increment: 1 } } });
+    const numero = formatNumeroFactura(pv.sucursal.establecimiento, pv.puntoExpedicion, tcUpd.siguienteNumero - 1);
 
     // Los servicios (sin inventario) no mueven stock.
     const servicios = await serviciosDeLineas(tx, f.lineas);
