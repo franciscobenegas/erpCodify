@@ -130,6 +130,30 @@ async function main() {
     });
   }
 
+  // Finanzas: cuentas de caja/banco con saldo y movimientos de ejemplo, rubros de
+  // gasto, y formas de pago ligadas a su cuenta destino (Efectivo→Caja, Transf.→Banco).
+  if ((await prisma.cuentaFinanciera.count({ where: { empresaId } })) === 0) {
+    const caja = await prisma.cuentaFinanciera.create({
+      data: { empresaId, nombre: "Caja", tipo: "CAJA", saldoInicial: 500000, saldo: 680000 },
+    });
+    const banco = await prisma.cuentaFinanciera.create({
+      data: { empresaId, nombre: "Banco Itaú", tipo: "BANCO", saldoInicial: 5000000, saldo: 6500000 },
+    });
+
+    const alquiler = await prisma.cuentaGasto.create({ data: { empresaId, nombre: "Alquiler" } });
+    await prisma.cuentaGasto.createMany({ data: ["Servicios básicos", "Sueldos", "Fletes"].map((nombre) => ({ empresaId, nombre })) });
+    await prisma.centroCosto.createMany({ data: ["Administración", "Ventas", "Depósito"].map((nombre) => ({ empresaId, nombre })) });
+
+    // Movimientos de ejemplo (el saldo de cada cuenta ya los contempla).
+    await prisma.movimientoCaja.create({ data: { empresaId, cuentaId: caja.id, tipo: "INGRESO", monto: 300000, concepto: "Venta de mostrador", origen: "COBRO" } });
+    await prisma.movimientoCaja.create({ data: { empresaId, cuentaId: caja.id, tipo: "EGRESO", monto: 120000, concepto: "Pago de alquiler", origen: "GASTO", cuentaGastoId: alquiler.id } });
+    await prisma.movimientoCaja.create({ data: { empresaId, cuentaId: banco.id, tipo: "INGRESO", monto: 1500000, concepto: "Transferencia de cliente", origen: "COBRO" } });
+
+    await prisma.formaPago.create({ data: { empresaId, nombre: "Efectivo", cuentaId: caja.id } });
+    await prisma.formaPago.create({ data: { empresaId, nombre: "Transferencia", cuentaId: banco.id } });
+    await prisma.formaPago.createMany({ data: ["Cheque", "Tarjeta"].map((nombre) => ({ empresaId, nombre })) });
+  }
+
   console.log("Seed listo. Usuario: admin@erp.local / admin123");
 }
 

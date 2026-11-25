@@ -24,9 +24,16 @@ export async function sembrarEjemplos(tx: Prisma.TransactionClient, empresaId: n
       { empresaId, codigo: "CJA", nombre: "Caja (12 un.)", decimales: 0, factor: 12 },
     ],
   });
-  await tx.formaPago.createMany({
-    data: ["Efectivo", "Transferencia", "Cheque", "Tarjeta"].map((nombre) => ({ empresaId, nombre })),
-  });
+  // Cuentas de caja/banco con saldo y movimientos de ejemplo, y formas de pago
+  // ligadas a su cuenta destino (Efectivo→Caja, Transferencia→Banco).
+  const caja = await tx.cuentaFinanciera.create({ data: { empresaId, nombre: "Caja", tipo: "CAJA", saldoInicial: 500000, saldo: 680000 } });
+  const banco = await tx.cuentaFinanciera.create({ data: { empresaId, nombre: "Banco Itaú", tipo: "BANCO", saldoInicial: 5000000, saldo: 6500000 } });
+  await tx.movimientoCaja.create({ data: { empresaId, cuentaId: caja.id, tipo: "INGRESO", monto: 300000, concepto: "Venta de mostrador", origen: "COBRO" } });
+  await tx.movimientoCaja.create({ data: { empresaId, cuentaId: caja.id, tipo: "EGRESO", monto: 120000, concepto: "Pago de alquiler", origen: "GASTO" } });
+  await tx.movimientoCaja.create({ data: { empresaId, cuentaId: banco.id, tipo: "INGRESO", monto: 1500000, concepto: "Transferencia de cliente", origen: "COBRO" } });
+  await tx.formaPago.create({ data: { empresaId, nombre: "Efectivo", cuentaId: caja.id } });
+  await tx.formaPago.create({ data: { empresaId, nombre: "Transferencia", cuentaId: banco.id } });
+  await tx.formaPago.createMany({ data: ["Cheque", "Tarjeta"].map((nombre) => ({ empresaId, nombre })) });
   await tx.cuentaGasto.createMany({
     data: ["Alquiler", "Servicios básicos", "Sueldos", "Impuestos", "Fletes"].map((nombre) => ({ empresaId, nombre })),
   });
